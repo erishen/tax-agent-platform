@@ -19,7 +19,7 @@
 ## 架构
 
 ```
-请求 → TenantMiddleware (Q8: X-Tenant-ID → contextvars)
+请求 → TenantMiddleware (Q8: API Key → 租户 → contextvars)
   → API 端点 (Q6: Depends 注入 RAG + Tools)
     → PSEWorkflow
       → PlannerAgent (Q7: LLMClient.structured_call 结构化输出)
@@ -73,13 +73,13 @@ source: State Taxation Administration
 - **RAG 语料按租户隔离**：`get_rag_pipeline()` 依 `X-Tenant-ID` 为每个租户构建独立的内存 pipeline。若存在 `data/corpus/<tenant_id>/` 子目录（且含 `.md`），该租户加载自己的私有语料；否则回退到共享的 `data/corpus/` 根目录。示例：`acme-us` 有独立的 `data/corpus/acme-us/us-federal-cit-2024.md`（美国联邦税），而 `acme-cn`/`demo` 加载共享的中国税种语料。
 - **工具注册表按租户隔离**：`get_tool_registry()` 为每个租户维护独立的 `ToolRegistry`（各自种子默认工具）。在某租户下 `POST /tools/` 注册的工具，其他租户不可见。
 - **SQL 行级安全（RLS）**：`apply_tenant_filter()` 自动把 `AND tenant_id = :tenant_id` 追加到查询，供未来 DB 化的存储层强制隔离（已有单元测试覆盖）。
-- **前端切换**：`X-Tenant-ID` 由 `web/src/api.ts` 从 `localStorage` 读取（默认 `acme-cn`）；「Tenant」页面提供租户切换器，切换后刷新即以新租户身份请求。
+- **前端切换**：前端把租户 API Key 放在 `X-API-Key` 头发送——优先从 `localStorage` 读取，构建期也可由 `VITE_TAX_API_KEY`（`web/.env.example`）注入，缺失时回退到非机密的演示 dev key。租户身份由**服务端根据 key 推导**，客户端不再自行声明 `X-Tenant-ID`。「Tenant」页面切换器用于替换已存储的 key。
 
 ```bash
-# acme-cn 加载共享中国税种语料（8 篇）
-curl -H "X-Tenant-ID: acme-cn" http://localhost:8001/rag/documents
-# acme-us 仅加载自己的美国联邦税语料（隔离验证）
-curl -H "X-Tenant-ID: acme-us" http://localhost:8001/rag/documents
+# acme-cn（key tax_demo_acme_cn_8f3a）加载共享中国税种语料（8 篇）
+curl -H "X-API-Key: tax_demo_acme_cn_8f3a" http://localhost:8001/rag/documents
+# acme-us（key tax_demo_acme_us_2b9e）仅加载自己的美国联邦税语料（隔离验证）
+curl -H "X-API-Key: tax_demo_acme_us_2b9e" http://localhost:8001/rag/documents
 ```
 
 ## 安全与隐私须知
@@ -87,8 +87,8 @@ curl -H "X-Tenant-ID: acme-us" http://localhost:8001/rag/documents
 本项目是面试题（Q1-Q9）**演示项目**，以下限制在投入生产前必须解决：
 
 - **网关层租户 API Key 鉴权（已落地）**：租户身份现在**由 API Key 推导**，而非客户端声称。请求须带 `X-API-Key` 头、`Authorization: Bearer <key>`、或 SSE 的 `?api_key=` 参数；中间件用 key 反查租户作为**权威身份**，**忽略**客户端自带的 `X-Tenant-ID`，从而堵住"伪造租户 ID 越权读他人语料"的洞。无效/缺失 key 在 `TAX_AUTH_REQUIRED=true`（默认）时返回 401；`/health`、`/docs`、`/openapi.json`、`/redoc` 免鉴权。key 映射在 `TAX_TENANT_API_KEYS`（JSON 或 `tenant:key|...` 管道格式）。设置 `TAX_AUTH_REQUIRED=false` 可退回 legacy 的 `X-Tenant-ID` 信任模式（仅开发用，会重新开放越权风险）。
-  - 演示用 dev key 见 `.env.example`（如 `acme-cn=tax_demo_acme_cn_8f3a`）。**生产须由服务端按租户下发独立 key，切勿把 key 写进前端 SPA**（本项目前端仅为演示内置了 dev key 常量）。
-- **PII 外发至第三方 LLM**：用户的 `goal`（税务问题，可能含企业营收、个人收入等敏感信息）会原样发往配置的外部 LLM（`TAX_OPENAI_BASE_URL` 默认指向 deepseek 公网 API）。当前**无 PII 脱敏**。生产环境需要：签署数据处理协议（DPA）、使用私有化/本地模型、或在发送前做 PII 清洗。检索用的 embedding 走本地 Ollama，不外发。
+  - 演示用 dev key 见 `.env.example`（如 `acme-cn=tax_demo_acme_cn_8f3a`）。前端 key 取自 `localStorage` 或构建期 `VITE_TAX_API_KEY`（`web/.env.example`），缺失时回退到同样的 dev 演示 key。**生产须由服务端按租户下发独立 key，切勿把真实 key 写进前端 SPA**（随包内置的回退 key 仅为非机密演示占位）。
+- **PII 外发至第三方 LLM**：用户的 `goal`（税务问题，可能含企业营收、个人收入等敏感信息）会发往配置的外部 OpenAI 兼容 LLM（`TAX_PRIMARY_BASE_URL`）。发送前会对直接标识符（身份证/手机号/邮箱/银行卡/统一社会信用代码）做脱敏（见 `llm/client.py:redact_pii`）；如需更强保障，生产环境仍应签署数据处理协议（DPA）、使用私有化/本地模型或做更完整的清洗。检索用的 embedding 走本地 Ollama，不外发。
 - **日志含用户输入**：`agents` 曾在 INFO 级别记录完整 `goal` 与步骤描述（现已截断脱敏，仅保留长度/摘要）。`llm/client` 仍记录原始异常，若日志外发至第三方可能泄露调用细节。生产环境应进一步收紧日志级别与落盘/外发范围。
 - **错误回显已收敛**：`/agent/run` 与 SSE 的异常现已返回**通用错误文案**（`workflow execution failed; see server logs for details`），内部异常细节仅保留在服务端日志，不再回显给客户端。
 - **跨用户数据边界**：`/dashboard/{user_id}` 当前返回模拟数据，且**未按租户做行级隔离**；接入真实存储时必须套用 `apply_tenant_filter()`（已实现，仅对 DB 化存储生效）。
@@ -114,32 +114,32 @@ curl -H "X-Tenant-ID: acme-us" http://localhost:8001/rag/documents
 ## curl 测试
 
 ```bash
-# Q8: 多租户 — 必须携带 X-Tenant-ID 头
-curl -H "X-Tenant-ID: acme-cn" http://localhost:8001/tenant/me
+# Q8: 多租户 — 网关鉴权要求 API Key（租户由 key 推导）
+curl -H "X-API-Key: tax_demo_acme_cn_8f3a" http://localhost:8001/tenant/me
 
 # Q4: 异步仪表盘
-curl -H "X-Tenant-ID: acme-cn" http://localhost:8001/dashboard/1
+curl -H "X-API-Key: tax_demo_acme_cn_8f3a" http://localhost:8001/dashboard/1
 
 # Q6: 注册工具
 curl -X POST http://localhost:8001/tools/ \
-  -H "X-Tenant-ID: acme-cn" \
+  -H "X-API-Key: tax_demo_acme_cn_8f3a" \
   -H "Content-Type: application/json" \
   -d '{"tool_name":"tax_calculator","description":"计算增值税/企业所得税","endpoint_url":"http://tax-service/calculate"}'
 
 # Q9: 运行 PSE Agent 工作流
-curl -H "X-Tenant-ID: acme-cn" "http://localhost:8001/agent/run?goal=软件增值税税率"
+curl -H "X-API-Key: tax_demo_acme_cn_8f3a" "http://localhost:8001/agent/run?goal=软件增值税税率"
 
 # Q5: RAG 检索
-curl -H "X-Tenant-ID: acme-cn" "http://localhost:8001/rag/query?question=软件增值税税率"
+curl -H "X-API-Key: tax_demo_acme_cn_8f3a" "http://localhost:8001/rag/query?question=软件增值税税率"
 
 # Q5: 列出知识库文档（含生效状态）
-curl -H "X-Tenant-ID: acme-cn" http://localhost:8001/rag/documents
+curl -H "X-API-Key: tax_demo_acme_cn_8f3a" http://localhost:8001/rag/documents
 
 # Q5: 热重载语料
-curl -X POST -H "X-Tenant-ID: acme-cn" http://localhost:8001/rag/reload
+curl -X POST -H "X-API-Key: tax_demo_acme_cn_8f3a" http://localhost:8001/rag/reload
 
 # Q4/Q9: SSE 实时流
-curl -N -H "X-Tenant-ID: acme-cn" "http://localhost:8001/agent/stream?goal=企业所得税扣除"
+curl -N -H "X-API-Key: tax_demo_acme_cn_8f3a" "http://localhost:8001/agent/stream?goal=企业所得税扣除"
 ```
 
 ## 项目结构
@@ -187,26 +187,28 @@ tax-agent-platform/
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `TAX_OPENAI_API_KEY` | `""` | LLM API 密钥 |
-| `TAX_OPENAI_BASE_URL` | `https://api.deepseek.com/v1` | LLM API 地址 |
-| `TAX_OPENAI_MODEL` | `deepseek-chat` | LLM 模型名称 |
-| `TAX_AGNES_API_KEY` | `""` | agnes 提供方 API 密钥 |
-| `TAX_AGNES_BASE_URL` | `https://apihub.agnes-ai.com/v1` | agnes 提供方 API 地址 |
-| `TAX_AGNES_MODEL` | `agnes-2.0-flash` | agnes 模型名称 |
-| `TAX_LLM_PROVIDER` | `agnes` | 默认 LLM 提供方（`agnes` / `deepseek`） |
+| `TAX_PRIMARY_API_KEY` | `""` | 默认提供方 API 密钥 |
+| `TAX_PRIMARY_BASE_URL` | `https://api.openai.com/v1` | 默认提供方 API 地址（任意 OpenAI 兼容端点） |
+| `TAX_PRIMARY_MODEL` | `gpt-4o-mini` | 默认提供方模型名称 |
+| `TAX_SECONDARY_API_KEY` | `""` | 备用/故障切换提供方 API 密钥 |
+| `TAX_SECONDARY_BASE_URL` | `https://api.openai.com/v1` | 备用提供方 API 地址 |
+| `TAX_SECONDARY_MODEL` | `gpt-4o-mini` | 备用提供方模型名称 |
+| `TAX_LLM_PROVIDER` | `primary` | 默认 LLM 提供方（`primary` / `secondary`） |
 | `TAX_MAX_RETRIES` | `3` | PSE 工作流最大重试次数 |
 | `TAX_CIRCUIT_BREAKER_THRESHOLD` | `5` | 熔断器触发阈值（连续失败次数） |
 | `TAX_LLM_TIMEOUT` | `30.0` | LLM 请求超时（秒） |
 | `TAX_RAG_TOP_K` | `20` | RAG 粗召回 top-k |
 | `TAX_RAG_RERANK_K` | `5` | RAG 精排 top-k |
 | `TAX_RAG_MODE` | `hybrid` | RAG 召回模式：`hybrid`（向量+关键词混合，中文语料推荐）/ `vector`（纯密集向量） |
+| `TAX_CHUNK_SIZE` | `512` | RAG 语义分块大小（字符） |
+| `TAX_CHUNK_OVERLAP` | `64` | RAG 分块重叠（字符） |
 | `TAX_EMBEDDING_MODEL` | `nomic-embed-text` | 本地 embedding 模型（需 `ollama pull`），可换 `snowflake-arctic-embed2` 提升召回 |
 | `TAX_EMBEDDING_URL` | `http://localhost:11434/api/embed` | Ollama embedding 接口地址 |
 | `TAX_EMBEDDING_TIMEOUT` | `10.0` | embedding 请求超时（秒） |
-| `TAX_AGNES_PRICE_PROMPT` | `0.004` | agnes 输入单价（CNY / 1K tokens） |
-| `TAX_AGNES_PRICE_COMPLETION` | `0.012` | agnes 输出单价（CNY / 1K tokens） |
-| `TAX_DEEPSEEK_PRICE_PROMPT` | `0.001` | deepseek 输入单价 |
-| `TAX_DEEPSEEK_PRICE_COMPLETION` | `0.002` | deepseek 输出单价 |
+| `TAX_PRIMARY_PRICE_PROMPT` | `0.004` | 默认提供方输入单价（CNY / 1K tokens） |
+| `TAX_PRIMARY_PRICE_COMPLETION` | `0.012` | 默认提供方输出单价（CNY / 1K tokens） |
+| `TAX_SECONDARY_PRICE_PROMPT` | `0.001` | 备用提供方输入单价 |
+| `TAX_SECONDARY_PRICE_COMPLETION` | `0.002` | 备用提供方输出单价 |
 | `TAX_HOST` | `0.0.0.0` | 服务监听地址 |
 | `TAX_PORT` | `8001` | 服务端口 |
 | `TAX_AUTH_REQUIRED` | `true` | 网关鉴权开关；`false` 退回 legacy 的 `X-Tenant-ID` 信任模式（仅开发，重新开放越权风险） |

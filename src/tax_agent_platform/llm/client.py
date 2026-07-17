@@ -116,8 +116,8 @@ class Guardrails:
 # ---- PII minimization (egress control) ----
 #
 # User-supplied text (the tax question / goal) may contain direct identifiers.
-# Before that text is sent to a THIRD-PARTY LLM (agnes / deepseek cloud), we
-# scrub the highest-risk direct identifiers so they never leave the premises.
+# Before that text is sent to a THIRD-PARTY / cloud LLM endpoint, we scrub the
+# highest-risk direct identifiers so they never leave the premises.
 #
 # Deliberately NARROW: entity names and revenue figures are KEPT, because the
 # advisor needs them to give a concrete, tailored answer and they are far lower
@@ -173,23 +173,23 @@ def _redact_user_messages(messages: list[dict[str, str]]) -> tuple[list[dict[str
 class LLMClient:
     """LLM client with structured output, retry, circuit breaker, and guardrails.
 
-    Supports two providers (both OpenAI-compatible protocol):
-      - "deepseek" (default): uses TAX_OPENAI_* settings
-      - "agnes": uses TAX_AGNES_* settings
+    Supports two interchangeable OpenAI-compatible providers:
+      - "primary" (default): uses TAX_PRIMARY_* settings
+      - "secondary": uses TAX_SECONDARY_* settings
     """
 
-    def __init__(self, provider: str = "deepseek") -> None:
+    def __init__(self, provider: str = "primary") -> None:
         self._provider = provider
-        if provider == "agnes":
-            api_key = settings.agnes_key
-            base_url = settings.agnes_base_url
-            self._model = settings.agnes_model
-            label = "AGNES"
+        if provider == "secondary":
+            api_key = settings.secondary_api_key
+            base_url = settings.secondary_base_url
+            self._model = settings.secondary_model
+            label = "SECONDARY"
         else:
-            api_key = settings.openai_api_key
-            base_url = settings.openai_base_url
-            self._model = settings.openai_model
-            label = "OPENAI"
+            api_key = settings.primary_api_key
+            base_url = settings.primary_base_url
+            self._model = settings.primary_model
+            label = "PRIMARY"
 
         if not api_key:
             raise RuntimeError(f"未设置 {label}_API_KEY。请在 .env 中配置。")
@@ -337,14 +337,14 @@ class LLMClient:
         """Estimate cost (CNY) for an accumulated ``usage`` dict.
 
         Per-provider rates (CNY per 1K tokens) come from settings, overridable
-        via env (``TAX_AGNES_PRICE_PROMPT`` / ``TAX_AGNES_PRICE_COMPLETION``,
+        via env (``TAX_PRIMARY_PRICE_PROMPT`` / ``TAX_PRIMARY_PRICE_COMPLETION``,
         etc.), so real pricing can be set without touching code. Defaults are
         placeholders.
         """
-        if self._provider == "agnes":
-            price = {"prompt": settings.agnes_price_prompt, "completion": settings.agnes_price_completion}
+        if self._provider == "secondary":
+            price = {"prompt": settings.secondary_price_prompt, "completion": settings.secondary_price_completion}
         else:
-            price = {"prompt": settings.deepseek_price_prompt, "completion": settings.deepseek_price_completion}
+            price = {"prompt": settings.primary_price_prompt, "completion": settings.primary_price_completion}
         return round(
             usage.get("prompt_tokens", 0) / 1000 * price["prompt"]
             + usage.get("completion_tokens", 0) / 1000 * price["completion"],

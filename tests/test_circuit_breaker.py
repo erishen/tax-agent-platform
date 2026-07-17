@@ -55,9 +55,9 @@ def _stub_client(raise_exc=None, content: str = "{}"):
 
 
 def _make_client(monkeypatch, raise_exc=None, content: str = "{}"):
-    monkeypatch.setattr(client_mod.settings, "agnes_key", "test-key")
-    monkeypatch.setattr(client_mod.settings, "agnes_model", "test-model")
-    client = LLMClient(provider="agnes")
+    monkeypatch.setattr(client_mod.settings, "primary_api_key", "test-key")
+    monkeypatch.setattr(client_mod.settings, "primary_model", "test-model")
+    client = LLMClient(provider="primary")
     client._breaker = CircuitBreaker(threshold=2, cooldown=1.0)
     client._client = _stub_client(raise_exc=raise_exc, content=content)
     return client

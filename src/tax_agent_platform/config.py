@@ -9,23 +9,25 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     """Application settings loaded from environment / .env.
 
-    Supports two LLM providers (both OpenAI-compatible):
-      - "agnes" (default): uses TAX_AGNES_* variables
-      - "deepseek": uses TAX_OPENAI_* variables
+    Supports two interchangeable OpenAI-compatible LLM providers so you can
+    switch or fail over between endpoints without touching code:
+      - "primary" (default): uses TAX_PRIMARY_* variables
+      - "secondary": uses TAX_SECONDARY_* variables
+    Point either one at any OpenAI-compatible endpoint (hosted or self-hosted).
     """
 
-    # LLM — DeepSeek (alternate provider)
-    openai_api_key: str = ""
-    openai_base_url: str = "https://api.deepseek.com/v1"
-    openai_model: str = "deepseek-chat"
+    # LLM — primary provider (default). Any OpenAI-compatible endpoint.
+    primary_api_key: str = ""
+    primary_base_url: str = "https://api.openai.com/v1"
+    primary_model: str = "gpt-4o-mini"
 
-    # LLM — Agnes (default provider, OpenAI-compatible)
-    agnes_key: str = ""
-    agnes_base_url: str = "https://apihub.agnes-ai.com/v1"
-    agnes_model: str = "agnes-2.0-flash"
+    # LLM — secondary provider (alternate / fail-over). OpenAI-compatible.
+    secondary_api_key: str = ""
+    secondary_base_url: str = "https://api.openai.com/v1"
+    secondary_model: str = "gpt-4o-mini"
 
-    # Default provider: "agnes" | "deepseek"
-    llm_provider: str = "agnes"
+    # Default provider: "primary" | "secondary"
+    llm_provider: str = "primary"
 
     # Agent
     max_retries: int = 3
@@ -33,12 +35,12 @@ class Settings(BaseSettings):
     llm_timeout: float = 30.0
 
     # Token pricing (CNY per 1K tokens) — override via env, e.g.
-    # TAX_AGNES_PRICE_PROMPT / TAX_AGNES_PRICE_COMPLETION. Defaults are
+    # TAX_PRIMARY_PRICE_PROMPT / TAX_PRIMARY_PRICE_COMPLETION. Defaults are
     # placeholders; set your real per-provider rates without touching code.
-    agnes_price_prompt: float = 0.004
-    agnes_price_completion: float = 0.012
-    deepseek_price_prompt: float = 0.001
-    deepseek_price_completion: float = 0.002
+    primary_price_prompt: float = 0.004
+    primary_price_completion: float = 0.012
+    secondary_price_prompt: float = 0.001
+    secondary_price_completion: float = 0.002
 
     # RAG
     rag_top_k: int = 20

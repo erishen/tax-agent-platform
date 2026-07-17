@@ -167,7 +167,7 @@ def reload_rag_pipeline() -> int:
     return _rag_pipelines[key].document_count()
 
 
-# ---- Q7: Shared LLM client (default provider from settings, e.g. "agnes") ----
+# ---- Q7: Shared LLM client (default provider from settings, e.g. "primary") ----
 
 _llm_client: Any | None = None
 _llm_init_done = False
@@ -178,8 +178,8 @@ def get_llm_client() -> Any | None:
 
     Returns None (never raises) when no API key / model is configured, so the
     Planner gracefully falls back to rule-based planning and the app keeps
-    running. Configure TAX_AGNES_* (default provider) or TAX_OPENAI_* in .env
-    to enable real LLM-driven structured planning.
+    running. Configure TAX_PRIMARY_* (default provider) or TAX_SECONDARY_* in
+    .env to enable real LLM-driven structured planning.
     """
     global _llm_client, _llm_init_done
     if not _llm_init_done:
@@ -415,10 +415,10 @@ async def llm_status() -> dict[str, Any]:
     """Check LLM client status: active provider + guardrails/circuit-breaker info (Q7)."""
     from tax_agent_platform.config import settings
     provider = settings.llm_provider
-    if provider == "agnes":
-        model, base_url, key = settings.agnes_model, settings.agnes_base_url, settings.agnes_key
+    if provider == "secondary":
+        model, base_url, key = settings.secondary_model, settings.secondary_base_url, settings.secondary_api_key
     else:
-        model, base_url, key = settings.openai_model, settings.openai_base_url, settings.openai_api_key
+        model, base_url, key = settings.primary_model, settings.primary_base_url, settings.primary_api_key
     return {
         "provider": provider,
         "model": model,

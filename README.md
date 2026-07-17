@@ -19,7 +19,7 @@ Enterprise tax advisory platform demonstrating Enterprise interview knowledge po
 ## Architecture
 
 ```
-Request → TenantMiddleware (Q8: X-Tenant-ID → contextvars)
+Request → TenantMiddleware (Q8: API key → tenant → contextvars)
   → API Endpoint (Q6: Depends injects RAG + Tools)
     → PSEWorkflow
       → PlannerAgent (Q7: LLMClient.structured_call)
@@ -107,14 +107,18 @@ Tenant isolation is **real data separation** (each tenant gets its own in-memory
 - **SQL Row-Level Security (RLS)**: `apply_tenant_filter()` auto-appends
   `AND tenant_id = :tenant_id` to queries so a future DB-backed store enforces isolation
   (covered by unit tests).
-- **Front-end switching**: `X-Tenant-ID` is read from `localStorage` by
-  `web/src/api.ts` (default `acme-cn`); the "Tenant" page provides a switcher.
+- **Front-end switching**: the front-end sends the tenant's API key in the
+  `X-API-Key` header — read from `localStorage` or, at build time, from
+  `VITE_TAX_API_KEY` (see `web/.env.example`), with a non-secret dev demo key
+  as fallback. The tenant identity is **derived server-side from the key**; the
+  client never asserts `X-Tenant-ID`. The "Tenant" page switcher swaps the
+  stored key.
 
 ```bash
-# acme-cn loads the shared China-tax corpus (8 docs)
-curl -H "X-Tenant-ID: acme-cn" http://localhost:8001/rag/documents
-# acme-us loads only its own US federal corpus (isolation check)
-curl -H "X-Tenant-ID: acme-us" http://localhost:8001/rag/documents
+# acme-cn (key tax_demo_acme_cn_8f3a) loads the shared China-tax corpus (8 docs)
+curl -H "X-API-Key: tax_demo_acme_cn_8f3a" http://localhost:8001/rag/documents
+# acme-us (key tax_demo_acme_us_2b9e) loads only its own US federal corpus (isolation check)
+curl -H "X-API-Key: tax_demo_acme_us_2b9e" http://localhost:8001/rag/documents
 ```
 
 ## Security & Privacy
@@ -133,15 +137,19 @@ addressed before any production use:
   `TAX_TENANT_API_KEYS` (JSON or `tenant:key|...` pipe format). Set
   `TAX_AUTH_REQUIRED=false` to fall back to the legacy client-claimed
   `X-Tenant-ID` (dev only — re-opens the spoofing risk).
-  Demo dev keys are in `.env.example` (e.g. `acme-cn=tax_demo_acme_cn_8f3a`).
-  **In production, issue per-tenant keys server-side — never ship them in a
-  SPA** (this demo's frontend embeds dev-key constants for illustration only).
+  Demo dev keys are in `.env.example`
+  (e.g. `acme-cn=tax_demo_acme_cn_8f3a`). The front-end reads its key from
+  `localStorage` or, at build time, from `VITE_TAX_API_KEY` (see
+  `web/.env.example`), falling back to the same dev demo keys.
+  **In production, issue per-tenant keys server-side — never ship real keys in
+  a SPA** (the bundled fallback keys are non-secret dev placeholders only).
 - **PII egress to third-party LLM**: the user's `goal` (a tax question that may
-  contain sensitive info like revenue or income) is sent verbatim to the
-  configured external LLM (`TAX_OPENAI_BASE_URL` defaults to the public
-  deepseek API). There is **no PII scrubbing** today. Production needs a DPA, a
-  private/on-prem model, or PII redaction before sending. Retrieval embeddings
-  run on local Ollama and do not leave the box.
+  contain sensitive info like revenue or income) is sent to the configured
+  external OpenAI-compatible LLM (`TAX_PRIMARY_BASE_URL`). Direct identifiers
+  (ID card / phone / email / bank card / credit code) are scrubbed before
+  egress (see `llm/client.py:redact_pii`); for stronger guarantees production
+  needs a DPA, a private/on-prem model, or fuller redaction. Retrieval
+  embeddings run on local Ollama and do not leave the box.
 - **Logs contain user input**: `agents` used to log the full `goal` and step
   descriptions at INFO (now truncated — only length/summary is kept).
   `llm/client` still logs raw exceptions; if logs are shipped off-box they may
@@ -162,32 +170,32 @@ addressed before any production use:
 ## Testing with curl
 
 ```bash
-# Q8: Multi-tenancy — must include X-Tenant-ID header
-curl -H "X-Tenant-ID: acme-cn" http://localhost:8001/tenant/me
+# Q8: Multi-tenancy — auth requires an API key (tenant is derived from it)
+curl -H "X-API-Key: tax_demo_acme_cn_8f3a" http://localhost:8001/tenant/me
 
 # Q4: Async dashboard
-curl -H "X-Tenant-ID: acme-cn" http://localhost:8001/dashboard/1
+curl -H "X-API-Key: tax_demo_acme_cn_8f3a" http://localhost:8001/dashboard/1
 
 # Q6: Register a tool
 curl -X POST http://localhost:8001/tools/ \
-  -H "X-Tenant-ID: acme-cn" \
+  -H "X-API-Key: tax_demo_acme_cn_8f3a" \
   -H "Content-Type: application/json" \
   -d '{"tool_name":"tax_calculator","description":"Calculate VAT/CIT amounts","endpoint_url":"http://tax-service/calculate"}'
 
 # Q9: Run PSE agent workflow
-curl -H "X-Tenant-ID: acme-cn" "http://localhost:8001/agent/run?goal=VAT+rate+for+software"
+curl -H "X-API-Key: tax_demo_acme_cn_8f3a" "http://localhost:8001/agent/run?goal=VAT+rate+for+software"
 
 # Q5: RAG query
-curl -H "X-Tenant-ID: acme-cn" "http://localhost:8001/rag/query?question=software+VAT+rate"
+curl -H "X-API-Key: tax_demo_acme_cn_8f3a" "http://localhost:8001/rag/query?question=software+VAT+rate"
 
 # Q5: List knowledge-base documents (with active status)
-curl -H "X-Tenant-ID: acme-cn" http://localhost:8001/rag/documents
+curl -H "X-API-Key: tax_demo_acme_cn_8f3a" http://localhost:8001/rag/documents
 
 # Q5: Hot-reload the corpus
-curl -X POST -H "X-Tenant-ID: acme-cn" http://localhost:8001/rag/reload
+curl -X POST -H "X-API-Key: tax_demo_acme_cn_8f3a" http://localhost:8001/rag/reload
 
 # Q4/Q9: SSE stream
-curl -N -H "X-Tenant-ID: acme-cn" "http://localhost:8001/agent/stream?goal=CIT+deduction"
+curl -N -H "X-API-Key: tax_demo_acme_cn_8f3a" "http://localhost:8001/agent/stream?goal=CIT+deduction"
 ```
 
 ## Project Structure
@@ -233,26 +241,28 @@ tax-agent-platform/
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TAX_OPENAI_API_KEY` | `""` | LLM API key (alternate provider) |
-| `TAX_OPENAI_BASE_URL` | `https://api.deepseek.com/v1` | LLM API base URL (alternate) |
-| `TAX_OPENAI_MODEL` | `deepseek-chat` | LLM model name (alternate) |
-| `TAX_AGNES_API_KEY` | `""` | LLM API key (default provider) |
-| `TAX_AGNES_BASE_URL` | `https://apihub.agnes-ai.com/v1` | LLM API base URL (default) |
-| `TAX_AGNES_MODEL` | `agnes-2.0-flash` | LLM model name (default) |
-| `TAX_LLM_PROVIDER` | `agnes` | Default LLM provider (`agnes` / `deepseek`) |
+| `TAX_PRIMARY_API_KEY` | `""` | LLM API key (default provider) |
+| `TAX_PRIMARY_BASE_URL` | `https://api.openai.com/v1` | LLM API base URL (default, any OpenAI-compatible endpoint) |
+| `TAX_PRIMARY_MODEL` | `gpt-4o-mini` | LLM model name (default) |
+| `TAX_SECONDARY_API_KEY` | `""` | LLM API key (alternate / fail-over provider) |
+| `TAX_SECONDARY_BASE_URL` | `https://api.openai.com/v1` | LLM API base URL (alternate) |
+| `TAX_SECONDARY_MODEL` | `gpt-4o-mini` | LLM model name (alternate) |
+| `TAX_LLM_PROVIDER` | `primary` | Default LLM provider (`primary` / `secondary`) |
 | `TAX_MAX_RETRIES` | `3` | PSE workflow max retries |
 | `TAX_CIRCUIT_BREAKER_THRESHOLD` | `5` | Consecutive failures before circuit opens |
 | `TAX_LLM_TIMEOUT` | `30.0` | LLM request timeout (seconds) |
 | `TAX_RAG_TOP_K` | `20` | RAG coarse recall top-k |
 | `TAX_RAG_RERANK_K` | `5` | RAG rerank top-k |
 | `TAX_RAG_MODE` | `hybrid` | RAG recall mode: `hybrid` (vector + lexical blend, recommended for Chinese) / `vector` (pure dense) |
+| `TAX_CHUNK_SIZE` | `512` | RAG chunk size (chars) for semantic chunking |
+| `TAX_CHUNK_OVERLAP` | `64` | RAG chunk overlap (chars) |
 | `TAX_EMBEDDING_MODEL` | `nomic-embed-text` | Local embedding model (needs `ollama pull`); swap to `snowflake-arctic-embed2` for higher recall |
 | `TAX_EMBEDDING_URL` | `http://localhost:11434/api/embed` | Ollama embedding endpoint |
 | `TAX_EMBEDDING_TIMEOUT` | `10.0` | Embedding request timeout (seconds) |
-| `TAX_AGNES_PRICE_PROMPT` | `0.004` | agnes input price (CNY / 1K tokens) |
-| `TAX_AGNES_PRICE_COMPLETION` | `0.012` | agnes output price (CNY / 1K tokens) |
-| `TAX_DEEPSEEK_PRICE_PROMPT` | `0.001` | deepseek input price |
-| `TAX_DEEPSEEK_PRICE_COMPLETION` | `0.002` | deepseek output price |
+| `TAX_PRIMARY_PRICE_PROMPT` | `0.004` | primary input price (CNY / 1K tokens) |
+| `TAX_PRIMARY_PRICE_COMPLETION` | `0.012` | primary output price (CNY / 1K tokens) |
+| `TAX_SECONDARY_PRICE_PROMPT` | `0.001` | secondary input price |
+| `TAX_SECONDARY_PRICE_COMPLETION` | `0.002` | secondary output price |
 | `TAX_HOST` | `0.0.0.0` | Server host |
 | `TAX_PORT` | `8001` | Server port |
 | `TAX_AUTH_REQUIRED` | `true` | Gateway auth on/off; `false` falls back to legacy client-claimed `X-Tenant-ID` (dev only, re-opens spoofing) |
