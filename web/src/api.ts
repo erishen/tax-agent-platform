@@ -1,14 +1,23 @@
 const API_BASE = '/api';
 const TENANT_STORAGE_KEY = 'tax-agent-tenant';
 const API_KEY_STORAGE_KEY = 'tax-agent-key';
-const DEFAULT_TENANT = 'acme-cn';
-const DEFAULT_API_KEY = 'tax_demo_acme_cn_8f3a';
+
+// Build-time config (Vite `import.meta.env`). The API key is injected at build
+// time via VITE_TAX_API_KEY so a real key is never hardcoded in source. The
+// fallbacks below are non-secret DEV demo values that mirror the demo keys in
+// `.env.example` — they let the app run zero-config locally. In production,
+// issue per-user keys server-side and inject VITE_TAX_API_KEY; never ship real
+// keys in a SPA.
+const ENV = (import.meta.env ?? {}) as Record<string, string | undefined>;
+const DEFAULT_TENANT = ENV.VITE_TAX_TENANT || 'acme-cn';
+const DEFAULT_API_KEY = ENV.VITE_TAX_API_KEY || 'tax_demo_acme_cn_8f3a';
 
 /** Known demo tenants (mirrors the backend _TENANTS store). */
 export const KNOWN_TENANTS = ['acme-cn', 'acme-us', 'demo'] as const;
 
-/** Dev demo keys — mirror TAX_TENANT_API_KEYS in .env.example.
- *  In production these would be issued per-user server-side, never shipped in JS. */
+/** DEV-only demo keys — non-secret placeholders mirroring TAX_TENANT_API_KEYS
+ *  in `.env.example`, used for the local tenant-switch demo. In production these
+ *  would be issued per-user server-side and never shipped in JS. */
 export const DEV_TENANT_KEYS: Record<string, string> = {
   'acme-cn': 'tax_demo_acme_cn_8f3a',
   'acme-us': 'tax_demo_acme_us_2b9e',
