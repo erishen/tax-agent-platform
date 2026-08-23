@@ -1,4 +1,4 @@
-"""Privacy hardening: PII minimization before egress to third-party LLM (Q7).
+"""Privacy hardening: PII minimization before egress to third-party LLM.
 
 These tests exercise the redaction helpers directly (no network / no LLM), so
 they stay fast and deterministic. They guard the property that direct

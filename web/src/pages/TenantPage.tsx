@@ -27,7 +27,7 @@ export default function TenantPage() {
   return (
     <>
       <h1 className="page-title">Tenant Context</h1>
-      <p className="page-desc">Q8: contextvars tenant isolation + token bucket rate limiting + RLS</p>
+      <p className="page-desc"> contextvars tenant isolation + token bucket rate limiting + RLS</p>
 
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-title">Switch Tenant (data isolation demo)</div>

@@ -1,4 +1,4 @@
-"""Q2: Unit tests demonstrating testability practices.
+""" Unit tests demonstrating testability practices.
 
 Key practices:
 1. Quick mock construction via Pydantic models
@@ -15,19 +15,17 @@ from tax_agent_platform.llm.client import CircuitBreaker, Guardrails
 from tax_agent_platform.middleware.tenant import RateLimiter
 
 
-# ---- Q1/Q6: Model & Registry Tests ----
+# ----  Model & Registry Tests ----
 
 class TestToolRegistry:
-    """Tests for tool registry with dependency injection (Q6)."""
+    """Tests for tool registry with dependency injection."""
 
     def test_register_tool_success(self):
-        """Q1: Quick mock construction via Pydantic model."""
+        """ Quick mock construction via Pydantic model."""
         registry = ToolRegistry(seed_defaults=False)
-        req = ToolCreate(
-            tool_name="tax_calculator",
+        req = ToolCreate(tool_name="tax_calculator",
             description="Calculate tax amounts",
-            endpoint_url="http://tax-service/calculate",
-        )
+            endpoint_url="http://tax-service/calculate",)
         result = registry.register(req)
         assert result.tool_name == "tax_calculator"
         assert result.id == 1
@@ -56,7 +54,7 @@ class TestToolRegistry:
         assert {"calculate_tax", "search_regulation", "validate_invoice", "generate_report"} <= names
 
 
-# ---- Q2: Code quality / tax calculation tests ----
+# ----  Code quality / tax calculation tests ----
 
 def calculate_tax(amount: float, rate: float = 0.1) -> float:
     """Improved version: type hints, input validation, configurable rate."""
@@ -86,7 +84,7 @@ class TestCalculateTax:
             calculate_tax(100, rate=1.5)
 
 
-# ---- Q5: RAG tests ----
+# ----  RAG tests ----
 
 class TestChunking:
     def test_fixed_length_chunking(self):
@@ -118,7 +116,7 @@ class TestTaxDocument:
         assert not doc.is_active(on=date(2026, 1, 1))
 
 
-# ---- Q7: LLM stability tests ----
+# ----  LLM stability tests ----
 
 class TestCircuitBreaker:
     def test_starts_closed(self):
@@ -170,7 +168,7 @@ class TestGuardrails:
         assert Guardrails.check_output("Our client secret key must be rotated.").passed is False
 
 
-# ---- Q8: Multi-tenancy tests ----
+# ----  Multi-tenancy tests ----
 
 class TestRateLimiter:
     def test_allows_within_limit(self):

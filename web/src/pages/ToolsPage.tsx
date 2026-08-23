@@ -21,7 +21,7 @@ export default function ToolsPage() {
   return (
     <>
       <h1 className="page-title">Tool Registry</h1>
-      <p className="page-desc">Q6: Tool discovery and FastAPI dependency injection</p>
+      <p className="page-desc"> Tool discovery and FastAPI dependency injection</p>
 
       <div className="card">
         <div className="card-title">Registered Tools ({tools.length})</div>

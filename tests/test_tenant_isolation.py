@@ -1,4 +1,4 @@
-"""Q8: Multi-tenant data isolation — the real thing, not decoration.
+""" Multi-tenant data isolation — the real thing, not decoration.
 
 These tests prove that RAG corpora and tool registries are genuinely
 separated per tenant, and that the SQL Row-Level-Security helper actually
@@ -9,10 +9,8 @@ singletons where every tenant saw identical data.
 from __future__ import annotations
 
 import tax_agent_platform.app as app_mod
-from tax_agent_platform.middleware.tenant import (
-    apply_tenant_filter,
-    set_current_tenant_id,
-)
+from tax_agent_platform.middleware.tenant import (apply_tenant_filter,
+    set_current_tenant_id,)
 from tax_agent_platform.models import ToolCreate
 from tax_agent_platform.tools.registry import _registries, get_tool_registry
 
@@ -80,12 +78,10 @@ def test_tool_registry_is_per_tenant_and_isolated():
     try:
         set_current_tenant_id("acme-cn")
         reg_cn = get_tool_registry()
-        reg_cn.register(ToolCreate(
-            tool_name="cn_only_tool",
+        reg_cn.register(ToolCreate(tool_name="cn_only_tool",
             description="A tool only ACME China registers",
             parameters_schema={"type": "object", "properties": {}},
-            endpoint_url="http://localhost:8001/tools/cn_only_tool/call",
-        ))
+            endpoint_url="http://localhost:8001/tools/cn_only_tool/call",))
         assert reg_cn.get_tool("cn_only_tool") is not None
 
         set_current_tenant_id("acme-us")
@@ -135,9 +131,7 @@ def test_run_workflow_in_thread_propagates_tenant():
 def test_apply_tenant_filter_scopes_query():
     try:
         set_current_tenant_id("demo")
-        query, params = apply_tenant_filter(
-            "SELECT * FROM tax_records WHERE id = :id", {"id": 1}
-        )
+        query, params = apply_tenant_filter("SELECT * FROM tax_records WHERE id = :id", {"id": 1})
         assert query.endswith("AND tenant_id = :tenant_id")
         assert params == {"id": 1, "tenant_id": "demo"}
     finally:

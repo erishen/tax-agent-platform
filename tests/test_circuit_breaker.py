@@ -1,4 +1,4 @@
-"""Circuit breaker integration tests (Q7).
+"""Circuit breaker integration tests.
 
 Guard against regression of the bug where infra/API failures (timeouts,
 5xx, connection errors) were never counted by the breaker, so it could
@@ -84,9 +84,7 @@ def test_structured_call_trips_breaker_on_infra_failure(monkeypatch):
 
     for _ in range(2):
         with pytest.raises(ConnectionError):
-            client.structured_call(
-                [{"role": "user", "content": "plan"}], response_model=Plan
-            )
+            client.structured_call([{"role": "user", "content": "plan"}], response_model=Plan)
 
     assert client._breaker.is_open is True
 
@@ -101,7 +99,7 @@ def test_success_resets_breaker(monkeypatch):
 
 
 def test_simple_call_blocks_on_input_injection(monkeypatch):
-    """simple_call must screen input, just like structured_call (Q7 consistency)."""
+    """simple_call must screen input, just like structured_call (consistency)."""
     client = _make_client(monkeypatch, content="harmless answer")
     with pytest.raises(ValueError, match="guardrail"):
         client.simple_call([
@@ -123,7 +121,7 @@ def test_simple_call_blocks_on_output_injection(monkeypatch):
 
 
 def test_guardrail_blocks_do_not_open_breaker(monkeypatch):
-    """Even many consecutive guardrail output blocks must keep the breaker closed (Q7 fix)."""
+    """Even many consecutive guardrail output blocks must keep the breaker closed (fix)."""
     client = _make_client(monkeypatch, content="The password is admin123")
     for _ in range(5):  # far beyond the threshold of 2
         with pytest.raises(ValueError, match="guardrail"):

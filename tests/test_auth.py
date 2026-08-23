@@ -1,4 +1,4 @@
-"""Gateway-level tenant API-key auth (Q8 hardening).
+"""Gateway-level tenant API-key auth (hardening).
 
 Verifies that tenant identity is DERIVED from a credential, never from a
 client-claimed X-Tenant-ID, and that missing/invalid keys are rejected.
@@ -45,10 +45,8 @@ def test_valid_key_returns_200_and_derives_tenant(client, monkeypatch):
 def test_spoofed_x_tenant_id_is_ignored(client, monkeypatch):
     """Claiming acme-us via header must NOT override the key's tenant (acme-cn)."""
     monkeypatch.setattr(settings, "tenant_api_keys", KEYS)
-    r = client.get(
-        "/tenant/me",
-        headers={"X-API-Key": KEY_CN, "X-Tenant-ID": "acme-us"},
-    )
+    r = client.get("/tenant/me",
+        headers={"X-API-Key": KEY_CN, "X-Tenant-ID": "acme-us"},)
     assert r.status_code == 200
     assert r.json()["tenant_id"] == "acme-cn"
 

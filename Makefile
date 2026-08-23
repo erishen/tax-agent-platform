@@ -1,4 +1,4 @@
-.PHONY: install dev run run-web run-all test lint clean stop
+.PHONY: install dev run run-web test lint clean stop
 
 # ---- Configuration ----
 PYTHON ?= python3
@@ -30,7 +30,21 @@ stop:
 run-web:
 	cd web && npx vite --port 5173
 
-run-all: run run-web
+# ---- Dev: 先起后端、等就绪、再起前端（Ctrl+C 一起停止）----
+dev:
+	@echo ">> 清理端口 8001/5173(如有占用)..."; for p in 8001 5173; do PIDS=$$(lsof -ti:$$p); if [ -n "$$PIDS" ]; then echo "  释放 :$$p ($$PIDS)"; kill $$PIDS 2>/dev/null; fi; done; sleep 1
+	@set -m; \
+	echo ">> 启动后端 (uvicorn :8001) ..."; \
+	($(UV) run uvicorn tax_agent_platform.app:app --reload --host 0.0.0.0 --port 8001) & BACKEND=$$!; \
+	trap 'echo; echo ">> 停止前后端..."; [ -n "$$BACKEND" ] && kill -- -$$BACKEND 2>/dev/null; [ -n "$$FRONTEND" ] && kill -- -$$FRONTEND 2>/dev/null' INT TERM EXIT; \
+	echo ">> 等待后端就绪 (8001，最多 30s) ..."; \
+	n=0; until curl -sf http://localhost:8001/health >/dev/null 2>&1; do \
+		sleep 1; n=$$((n+1)); \
+		if [ $$n -ge 30 ]; then echo "❌ 后端 30s 未就绪，请检查上方后端日志"; exit 1; fi; \
+	done; \
+	echo ">> 后端已就绪，启动前端 (Vite :5173) ..."; \
+	(cd web && npx vite --port 5173) & FRONTEND=$$!; \
+	wait
 
 # ---- Test ----
 test:

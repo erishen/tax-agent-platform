@@ -1,4 +1,4 @@
-"""Q9: Multi-Agent framework — fully integrated with RAG, Tools, LLM, Guardrails, Multi-tenancy.
+""" Multi-Agent framework — fully integrated with RAG, Tools, LLM, Guardrails, Multi-tenancy.
 
 Integration chain:
   PlannerAgent → LLMClient (structured output for plan generation)
@@ -41,29 +41,28 @@ def _criterion_supported_by_evidence(criterion: str, evidence: list[str]) -> boo
     return False
 
 
-# ---- Q9.1: Agent Base Class ----
+# ----  Agent Base Class ----
 
 class Agent(ABC):
-    """Base class for all agents — enforces clear role separation (Q9)."""
+    """Base class for all agents — enforces clear role separation."""
 
     def __init__(self, name: str, role: str) -> None:
         self.name = name
         self.role = role
 
     @abstractmethod
-    async def run(self, input_data: dict[str, Any]) -> AgentRunResult:
-        ...
+    async def run(self, input_data: dict[str, Any]) -> AgentRunResult:...
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(name={self.name!r}, role={self.role!r})"
 
 
-# ---- Q9.2: PSE Agents — Integrated with RAG / Tools / LLM / Guardrails ----
+# ----  PSE Agents — Integrated with RAG / Tools / LLM / Guardrails ----
 
 class PlannerAgent(Agent):
     """Planner: uses LLM to break down goal into steps with acceptance criteria.
 
-    Integration: LLMClient.structured_call() for reliable JSON plan output (Q7).
+    Integration: LLMClient.structured_call() for reliable JSON plan output.
     Fallback to rule-based planning if LLM is unavailable.
     """
 
@@ -79,27 +78,22 @@ class PlannerAgent(Agent):
         # written verbatim to logs that could be shipped off-box.
         logger.info("[%s] Planning (tenant=%s, goal_len=%d)", self.name, tenant_id, len(goal))
 
-        # Try LLM-based planning (Q7: structured output)
+        # Try LLM-based planning (structured output)
         if self._llm:
             try:
                 from tax_agent_platform.models import PlanConfig
-                plan_data = self._llm.structured_call(
-                    messages=[
-                        {"role": "system", "content": (
-                            "You are a tax advisory planner. Break the goal into 2-4 execution steps. "
+                plan_data = self._llm.structured_call(messages=[
+                        {"role": "system", "content": ("You are a tax advisory planner. Break the goal into 2-4 execution steps. "
                             "Return a JSON object with exactly this shape: "
                             '{"steps": [{"step_id": <int>, "description": <string>, '
-                            '"acceptance_criteria": [<string>, ...]}], '
-                            '"overall_criteria": [<string>, ...]}. '
-                            "step_id must be a sequential integer starting at 1."
-                        )},
+                            '"acceptance_criteria": [<string>,...]}], '
+                            '"overall_criteria": [<string>,...]}. '
+                            "step_id must be a sequential integer starting at 1.")},
                         {"role": "user", "content": goal},
                     ],
                     response_model=PlanConfig,
-                    usage=usage,
-                )
-                return AgentRunResult(
-                    agent_name=self.name,
+                    usage=usage,)
+                return AgentRunResult(agent_name=self.name,
                     status="success",
                     data={
                         "steps": [
@@ -112,8 +106,7 @@ class PlannerAgent(Agent):
                         ],
                         "overall_criteria": plan_data.overall_criteria,
                     },
-                    output=f"LLM plan created with {len(plan_data.steps)} steps",
-                )
+                    output=f"LLM plan created with {len(plan_data.steps)} steps",)
             except Exception as e:
                 logger.warning("[%s] LLM planning failed, using fallback: %s", self.name, e)
 
@@ -126,31 +119,27 @@ class PlannerAgent(Agent):
             "overall_criteria": ["All steps completed", "Evidence collected and verified"],
         }
 
-        return AgentRunResult(
-            agent_name=self.name,
+        return AgentRunResult(agent_name=self.name,
             status="success",
             data=plan,
-            output=f"Plan created with {len(plan['steps'])} steps",
-        )
+            output=f"Plan created with {len(plan['steps'])} steps",)
 
 
 class SpecialistAgent(Agent):
     """Specialist: executes steps using RAG retrieval + Tool calls + LLM-grounded answer.
 
     Integration:
-    - RAGPipeline: retrieve relevant tax documents (Q5) — fed into the LLM as
+    - RAGPipeline: retrieve relevant tax documents  — fed into the LLM as
       GROUNDED evidence so the answer cites real tax clauses, not inventions.
-    - ToolRegistry: discover and call registered tools (Q6)
+    - ToolRegistry: discover and call registered tools 
     - LLMClient.simple_call: generate a grounded answer from the retrieved
       evidence. When no LLM is configured, falls back to the placeholder answer.
     """
 
-    def __init__(
-        self,
+    def __init__(self,
         rag_pipeline: RAGPipeline | None = None,
         tool_registry: ToolRegistry | None = None,
-        llm_client: Any | None = None,
-    ) -> None:
+        llm_client: Any | None = None,) -> None:
         super().__init__(name="Specialist", role="Execute plan steps with RAG + Tools + LLM-grounded answer")
         self._rag = rag_pipeline
         self._tools = tool_registry
@@ -169,14 +158,14 @@ class SpecialistAgent(Agent):
         evidence: list[str] = []
         tool_outputs: list[dict[str, Any]] = []
 
-        # Q5: RAG retrieval — find relevant tax documents
+        #  RAG retrieval — find relevant tax documents
         if self._rag:
             rag_results = self._rag.query(description, top_k=5)
             for r in rag_results:
                 evidence.append(f"RAG: [{r.doc_id}] score={r.score:.3f} → {r.content[:100]}")
             logger.info("[%s] RAG returned %d documents", self.name, len(rag_results))
 
-        # Q6: Tool discovery and execution
+        #  Tool discovery and execution
         if self._tools:
             available_tools = self._tools.list_tools()
             for tool in available_tools:
@@ -192,7 +181,7 @@ class SpecialistAgent(Agent):
         if not evidence:
             evidence.append(f"Step executed: {description}")
 
-        # Q7/Q9: Generate a GROUNDED answer from the retrieved evidence via the LLM.
+        #  Generate a GROUNDED answer from the retrieved evidence via the LLM.
         # This is the link that was previously missing — RAG results were logged
         # but never fed into generation, so they had zero effect on the answer.
         # Now the answer is produced *from* the evidence and cites its sources.
@@ -201,50 +190,42 @@ class SpecialistAgent(Agent):
             try:
                 context_block = "\n".join(evidence) if evidence else "(no retrieved evidence)"
                 answer = self._llm.simple_call(messages=[
-                    {"role": "system", "content": (
-                        "You are a tax advisory specialist. Answer the step using ONLY the retrieved "
+                    {"role": "system", "content": ("You are a tax advisory specialist. Answer the step using ONLY the retrieved "
                         "evidence below. Rules:\n"
                         "- Cite the source for every key claim as [doc_id].\n"
                         "- Do NOT invent tax clauses or rates not present in the evidence.\n"
                         "- If the evidence is insufficient, say so explicitly rather than guessing.\n"
-                        "Respond in the same language as the user's request."
-                    )},
-                    {"role": "user", "content": (
-                        f"Step objective: {description}\n\n"
-                        f"Retrieved evidence:\n{context_block}"
-                    )},
+                        "Respond in the same language as the user's request.")},
+                    {"role": "user", "content": (f"Step objective: {description}\n\n"
+                        f"Retrieved evidence:\n{context_block}")},
                 ], usage=usage)
                 if answer and answer.strip():
                     result_text = answer.strip()
             except Exception as e:
                 logger.warning("[%s] LLM grounded answer failed, using placeholder: %s", self.name, e)
 
-        return AgentRunResult(
-            agent_name=self.name,
+        return AgentRunResult(agent_name=self.name,
             status="success",
             data={"step_id": step_id, "result": result_text, "tool_outputs": tool_outputs},
             evidence=evidence,
-            output=result_text,
-        )
+            output=result_text,)
 
 
 class EvaluatorAgent(Agent):
     """Evaluator: independently verifies Specialist output via re-collected evidence + LLM audit.
 
     Integration:
-    - Guardrails: screen Specialist output for prompt injection / sensitive data (Q7)
-    - Evidence-driven (Q9): does NOT trust Specialist's self-assessment. It
+    - Guardrails: screen Specialist output for prompt injection / sensitive data 
+    - Evidence-driven : does NOT trust Specialist's self-assessment. It
       independently re-queries the RAG pipeline for the step and asks the LLM
       to audit each acceptance criterion against that independently gathered
       evidence (SUPPORTED / CONTRADICTED / UNVERIFIED).
     """
 
-    def __init__(
-        self,
+    def __init__(self,
         guardrails_enabled: bool = True,
         llm_client: Any | None = None,
-        rag_pipeline: RAGPipeline | None = None,
-    ) -> None:
+        rag_pipeline: RAGPipeline | None = None,) -> None:
         super().__init__(name="Evaluator", role="Independently verify via re-collected evidence + LLM audit")
         self._guardrails_enabled = guardrails_enabled
         self._llm = llm_client
@@ -260,21 +241,19 @@ class EvaluatorAgent(Agent):
 
         issues: list[str] = []
 
-        # Q7: Guardrail screen on Specialist output (screen only, never trust)
+        #  Guardrail screen on Specialist output (screen only, never trust)
         if self._guardrails_enabled and specialist_result:
             from tax_agent_platform.llm.client import Guardrails
             output_check = Guardrails.check_output(specialist_result.output)
             if not output_check.passed:
                 issues.append(f"Guardrail blocked: {output_check.reason}")
-                return AgentRunResult(
-                    agent_name=self.name,
+                return AgentRunResult(agent_name=self.name,
                     status="success",
                     data={"verdict": Verdict.FAIL.value, "issues": issues, "verifications": [], "independent_evidence": []},
                     evidence=[f"GUARDRAIL: {output_check.reason}"],
-                    output=f"Verdict: FAIL (guardrail: {output_check.category})",
-                )
+                    output=f"Verdict: FAIL (guardrail: {output_check.category})",)
 
-        # Q9: Independently re-collect evidence — do NOT reuse Specialist's evidence
+        #  Independently re-collect evidence — do NOT reuse Specialist's evidence
         independent_evidence: list[str] = []
         if self._rag:
             for r in self._rag.query(step.get("description", ""), top_k=5):
@@ -285,15 +264,13 @@ class EvaluatorAgent(Agent):
         if not independent_evidence:
             independent_evidence = [f"No external evidence retrievable for: {step.get('description', '')}"]
 
-        # Q9: Independent LLM audit — does the evidence actually support each criterion?
+        #  Independent LLM audit — does the evidence actually support each criterion?
         verifications: list[dict[str, Any]] = []
         if self._llm and criteria:
             try:
                 from tax_agent_platform.models import EvaluationResult
-                eval_data = self._llm.structured_call(
-                    messages=[
-                        {"role": "system", "content": (
-                            "You are an independent tax audit reviewer. You do NOT trust the Specialist's "
+                eval_data = self._llm.structured_call(messages=[
+                        {"role": "system", "content": ("You are an independent tax audit reviewer. You do NOT trust the Specialist's "
                             "self-assessment. Given the acceptance criteria, the Specialist's output, and "
                             "independently retrieved evidence, verify each criterion.\n"
                             "For each criterion return: verdict = SUPPORTED (evidence backs it) | "
@@ -301,17 +278,13 @@ class EvaluatorAgent(Agent):
                             "plus a short reason.\n"
                             'Return JSON: {"criteria": [{"criterion": str, "verdict": str, "reason": str}], '
                             '"overall_verdict": "PASS"|"PARTIAL"|"FAIL", '
-                            '"independent_evidence": [str]}.'
-                        )},
-                        {"role": "user", "content": (
-                            f"Acceptance criteria:\n{json.dumps(criteria, ensure_ascii=False)}\n\n"
+                            '"independent_evidence": [str]}.')},
+                        {"role": "user", "content": (f"Acceptance criteria:\n{json.dumps(criteria, ensure_ascii=False)}\n\n"
                             f"Specialist output:\n{(specialist_result.output if specialist_result else '')}\n\n"
-                            "Independently retrieved evidence:\n" + "\n".join(independent_evidence)
-                        )},
+                            "Independently retrieved evidence:\n" + "\n".join(independent_evidence))},
                     ],
                     response_model=EvaluationResult,
-                    usage=usage,
-                )
+                    usage=usage,)
                 for c in eval_data.criteria:
                     verifications.append({"criterion": c.criterion, "verdict": c.verdict, "reason": c.reason})
                 # Derive a robust overall verdict from per-criterion results
@@ -332,8 +305,7 @@ class EvaluatorAgent(Agent):
             unsupported = [v for v in verifications if v["verdict"] != "SUPPORTED"]
             issues.append(f"{overall}: {len(unsupported)} criterion(s) not fully supported by independent evidence")
 
-        return AgentRunResult(
-            agent_name=self.name,
+        return AgentRunResult(agent_name=self.name,
             status="success",
             data={
                 "verdict": overall,
@@ -342,8 +314,7 @@ class EvaluatorAgent(Agent):
                 "independent_evidence": independent_evidence,
             },
             evidence=independent_evidence,
-            output=f"Verdict: {overall} ({len(verifications)} criteria audited, {len(independent_evidence)} independent sources)",
-        )
+            output=f"Verdict: {overall} ({len(verifications)} criteria audited, {len(independent_evidence)} independent sources)",)
 
     @staticmethod
     def _heuristic_verify(criteria: list[str], evidence: list[str]) -> tuple[str, list[dict[str, Any]]]:
@@ -365,10 +336,10 @@ class EvaluatorAgent(Agent):
         return Verdict.PARTIAL.value, verifications
 
 
-# ---- Q9.3: Workflow Engine ----
+# ----  Workflow Engine ----
 
 class WorkflowStep:
-    """A single step in the workflow graph with branching routes (Q9).
+    """A single step in the workflow graph with branching routes.
 
     Each step runs an ``executor`` agent, then (optionally) a ``verifier`` agent.
     The verifier's verdict drives branching:
@@ -378,16 +349,14 @@ class WorkflowStep:
     Every executed step appends its aggregated result to ``context["_results"]``.
     """
 
-    def __init__(
-        self,
+    def __init__(self,
         name: str,
         step: dict[str, Any],
         executor: Agent,
         verifier: Agent | None = None,
         next_on_success: WorkflowStep | None = None,
         next_on_failure: WorkflowStep | None = None,
-        max_retries: int = 3,
-    ) -> None:
+        max_retries: int = 3,) -> None:
         self.name = name
         self.step = step
         self.executor = executor
@@ -455,7 +424,7 @@ class WorkflowStep:
         }
         context.setdefault("_results", []).append(result)
 
-        # Branch on the final verdict (Q9: real routing)
+        # Branch on the final verdict (real routing)
         if final_verdict != Verdict.FAIL.value and self.next_on_success:
             return await self.next_on_success.execute(context, on_event)
         if final_verdict == Verdict.FAIL.value and self.next_on_failure:
@@ -466,7 +435,7 @@ class WorkflowStep:
 
 
 class WorkflowEngine:
-    """Orchestrates a multi-agent workflow graph with branching support (Q9)."""
+    """Orchestrates a multi-agent workflow graph with branching support."""
 
     def __init__(self) -> None:
         self._entry: WorkflowStep | None = None
@@ -482,42 +451,36 @@ class WorkflowEngine:
         return {"results": initial_context["_results"]}
 
 
-# ---- Q9.4: Integrated PSE Workflow ----
+# ----  Integrated PSE Workflow ----
 
 class PSEWorkflow:
     """Fully integrated PSE workflow: Planner → Specialist → Evaluator.
 
     Wires together all modules:
-    - PlannerAgent uses LLMClient (Q7) for structured planning
-    - SpecialistAgent uses RAGPipeline (Q5) + ToolRegistry (Q6)
-    - EvaluatorAgent uses Guardrails (Q7) + evidence-driven verification (Q9)
-    - All agents respect TenantMiddleware context (Q8)
+    - PlannerAgent uses LLMClient  for structured planning
+    - SpecialistAgent uses RAGPipeline  + ToolRegistry 
+    - EvaluatorAgent uses Guardrails  + evidence-driven verification 
+    - All agents respect TenantMiddleware context 
     - Auto-retry on PARTIAL/FAIL with evidence preservation
     """
 
-    def __init__(
-        self,
+    def __init__(self,
         max_retries: int = 3,
         rag_pipeline: RAGPipeline | None = None,
         tool_registry: ToolRegistry | None = None,
-        llm_client: Any | None = None,
-    ) -> None:
+        llm_client: Any | None = None,) -> None:
         self.planner = PlannerAgent(llm_client=llm_client)
-        self.specialist = SpecialistAgent(
-            rag_pipeline=rag_pipeline,
+        self.specialist = SpecialistAgent(rag_pipeline=rag_pipeline,
             tool_registry=tool_registry,
+            llm_client=llm_client,)
+        self.evaluator = EvaluatorAgent(guardrails_enabled=True,
             llm_client=llm_client,
-        )
-        self.evaluator = EvaluatorAgent(
-            guardrails_enabled=True,
-            llm_client=llm_client,
-            rag_pipeline=rag_pipeline,
-        )
+            rag_pipeline=rag_pipeline,)
         self.max_retries = max_retries
         self.llm_client = llm_client
 
     async def run(self, goal: str, on_event: Any = None) -> dict[str, Any]:
-        """Run the full PSE workflow via the WorkflowEngine (Q9).
+        """Run the full PSE workflow via the WorkflowEngine.
 
         The engine drives a linear step chain where each step runs
         Specialist → Evaluator and branches on the Evaluator's verdict.
@@ -559,13 +522,11 @@ class PSEWorkflow:
         # runs Specialist → Evaluator; success branches to the next step.
         nodes: list[WorkflowStep] = []
         for i, step in enumerate(steps):
-            node = WorkflowStep(
-                name=f"step_{step.get('step_id', i + 1)}",
+            node = WorkflowStep(name=f"step_{step.get('step_id', i + 1)}",
                 step=step,
                 executor=self.specialist,
                 verifier=self.evaluator,
-                max_retries=self.max_retries,
-            )
+                max_retries=self.max_retries,)
             nodes.append(node)
         for i in range(len(nodes) - 1):
             nodes[i].next_on_success = nodes[i + 1]

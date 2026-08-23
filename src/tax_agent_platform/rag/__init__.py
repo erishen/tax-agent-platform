@@ -1,4 +1,4 @@
-"""Q5: RAG module — chunking, vector retrieval, re-ranking, and timeliness.
+""" RAG module — chunking, vector retrieval, re-ranking, and timeliness.
 
 Demonstrates:
 1. Semantic chunking with overlap (vs fixed-length)
@@ -30,7 +30,7 @@ def _l2_normalize(v: list[float]) -> list[float]:
     return [x / norm for x in v]
 
 
-# ---- Q5.0: Language-aware tokenization ----
+# ----  Language-aware tokenization ----
 
 def tokenize(text: str) -> set[str]:
     """Tokenize text for keyword-overlap scoring, supporting CJK + Latin.
@@ -58,7 +58,7 @@ def tokenize(text: str) -> set[str]:
     return tokens
 
 
-# ---- Q5.1: Chunking Strategies ----
+# ----  Chunking Strategies ----
 
 @dataclass
 class Chunk:
@@ -68,11 +68,9 @@ class Chunk:
     index: int = 0
 
 
-def chunk_by_fixed_length(
-    text: str,
+def chunk_by_fixed_length(text: str,
     chunk_size: int = 512,
-    overlap: int = 64,
-) -> list[Chunk]:
+    overlap: int = 64,) -> list[Chunk]:
     """Fixed-length chunking with overlap.
 
     Simple but can split mid-sentence. Overlap (10-20%) prevents
@@ -89,11 +87,9 @@ def chunk_by_fixed_length(
     return chunks
 
 
-def chunk_by_semantic(
-    text: str,
+def chunk_by_semantic(text: str,
     max_chunk_size: int = 512,
-    overlap_sentences: int = 1,
-) -> list[Chunk]:
+    overlap_sentences: int = 1,) -> list[Chunk]:
     """Semantic chunking: split by Markdown headings / paragraphs, then by size.
 
     Preserves semantic boundaries (headings, paragraphs) better than
@@ -124,11 +120,11 @@ def chunk_by_semantic(
     return chunks
 
 
-# ---- Q5.2: Document with Timeliness Metadata ----
+# ----  Document with Timeliness Metadata ----
 
 @dataclass
 class TaxDocument:
-    """A tax regulation document with effective/expiry dates (Q5.3)."""
+    """A tax regulation document with effective/expiry dates."""
     doc_id: str
     title: str
     content: str
@@ -146,7 +142,7 @@ class TaxDocument:
         return True
 
 
-# ---- Q5.2: Two-stage Retrieval ----
+# ----  Two-stage Retrieval ----
 
 @dataclass
 class RetrievalResult:
@@ -182,14 +178,12 @@ class SemanticVectorStore:
         vectors = self._embedder.embed([c.content for c in chunks])
         self._embeddings[doc.doc_id] = [_l2_normalize(v) for v in vectors]
 
-    def coarse_recall(
-        self,
+    def coarse_recall(self,
         query_vec: list[float],
         query_text: str = "",
         top_k: int = 20,
         active_only: bool = True,
-        mode: str = "vector",
-    ) -> list[RetrievalResult]:
+        mode: str = "vector",) -> list[RetrievalResult]:
         """Stage 1: dense-vector coarse recall via cosine similarity.
 
         ``query_vec`` is the L2-normalized embedding of the question. Returns
@@ -204,7 +198,7 @@ class SemanticVectorStore:
 
         for doc_id, chunks in self._chunks.items():
             doc = self._docs[doc_id]
-            # Q5.3: Filter by timeliness
+            #  Filter by timeliness
             if active_only and not doc.is_active():
                 continue
 
@@ -216,23 +210,21 @@ class SemanticVectorStore:
                     overlap = len(query_terms & chunk_terms)
                     overlap_score = overlap / max(len(query_terms), 1)
                     score = 0.7 * cos + 0.3 * overlap_score
-                results.append(RetrievalResult(
-                    doc_id=doc_id,
+                results.append(RetrievalResult(doc_id=doc_id,
                     content=chunk.content,
                     score=score,
                     metadata={
                         "doc_title": doc.title,
                         "effective_date": str(doc.effective_date),
                         "source": doc.source,
-                    },
-                ))
+                    },))
 
         results.sort(key=lambda r: r.score, reverse=True)
         return results[:top_k]
 
 
 class ReRanker:
-    """Stage 2: Cross-Encoder re-ranking (Q5.2).
+    """Stage 2: Cross-Encoder re-ranking.
 
     In production: use cross-encoder/ms-marco-MiniLM-L-6-v2
     from sentence-transformers. This mock uses a simple
@@ -292,9 +284,7 @@ class RAGPipeline:
         # Embed the question once, then run cosine recall against chunk vectors.
         qvec = _l2_normalize(self.embedder.embed([question])[0])
         # Stage 1: Dense-vector coarse recall
-        candidates = self.store.coarse_recall(
-            qvec, query_text=question, top_k=50, active_only=active_only, mode=self.rag_mode,
-        )
+        candidates = self.store.coarse_recall(qvec, query_text=question, top_k=50, active_only=active_only, mode=self.rag_mode,)
         if not candidates:
             return []
 
@@ -404,13 +394,11 @@ def load_documents_from_corpus(directory: str | os.PathLike) -> list[TaxDocument
         if any(d.doc_id == doc_id for d in docs):
             logger.warning("Duplicate doc_id %r in %s; skipping", doc_id, path)
             continue
-        docs.append(TaxDocument(
-            doc_id=doc_id,
+        docs.append(TaxDocument(doc_id=doc_id,
             title=fm.get("title", doc_id),
             content=content,
             effective_date=_parse_date(fm.get("effective_date")),
             expiry_date=_parse_date(fm.get("expiry_date")),
-            source=fm.get("source", ""),
-        ))
+            source=fm.get("source", ""),))
     logger.info("Loaded %d corpus documents from %s", len(docs), directory)
     return docs

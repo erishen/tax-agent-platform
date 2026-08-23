@@ -6,31 +6,25 @@ heuristic verifier, and the planner uses rule-based planning.
 
 import asyncio
 
-from tax_agent_platform.agents import (
-    Agent,
+from tax_agent_platform.agents import (Agent,
     AgentRunResult,
     EvaluatorAgent,
     PSEWorkflow,
     WorkflowEngine,
-    WorkflowStep,
-)
+    WorkflowStep,)
 from tax_agent_platform.models import Verdict
 
 
 class _PassAgent(Agent):
     async def run(self, input_data):
-        return AgentRunResult(
-            agent_name="Pass", status="success",
-            data={"verdict": Verdict.PASS.value}, evidence=["e"], output="ok",
-        )
+        return AgentRunResult(agent_name="Pass", status="success",
+            data={"verdict": Verdict.PASS.value}, evidence=["e"], output="ok",)
 
 
 class _FailAgent(Agent):
     async def run(self, input_data):
-        return AgentRunResult(
-            agent_name="Fail", status="success",
-            data={"verdict": Verdict.FAIL.value}, evidence=["e"], output="no",
-        )
+        return AgentRunResult(agent_name="Fail", status="success",
+            data={"verdict": Verdict.FAIL.value}, evidence=["e"], output="no",)
 
 
 class _EchoVerifier(Agent):
@@ -39,18 +33,14 @@ class _EchoVerifier(Agent):
     async def run(self, input_data):
         sr = input_data.get("specialist_result")
         verdict = (sr.data if sr else {}).get("verdict", Verdict.PASS.value)
-        return AgentRunResult(
-            agent_name="Verifier", status="success",
+        return AgentRunResult(agent_name="Verifier", status="success",
             data={"verdict": verdict, "issues": [], "verifications": [], "independent_evidence": []},
-            evidence=[], output="v",
-        )
+            evidence=[], output="v",)
 
 
 def _step(name, executor, step_id):
-    return WorkflowStep(
-        name=name, step={"step_id": step_id},
-        executor=executor, verifier=_EchoVerifier("V", "r"),
-    )
+    return WorkflowStep(name=name, step={"step_id": step_id},
+        executor=executor, verifier=_EchoVerifier("V", "r"),)
 
 
 def test_workflowstep_success_branches_to_next_on_success():
@@ -86,11 +76,9 @@ def test_workflowstep_failure_branches_to_next_on_failure():
 def test_evaluator_heuristic_verification_without_llm():
     # Evaluator with no LLM must still produce structured verifications
     evaluator = EvaluatorAgent(guardrails_enabled=True, llm_client=None, rag_pipeline=None)
-    specialist = AgentRunResult(
-        agent_name="Specialist", status="success",
+    specialist = AgentRunResult(agent_name="Specialist", status="success",
         data={}, evidence=["RAG:[vat-2024] score=0.3 → 软件服务适用 6% 增值税"],
-        output="software VAT is 6%",
-    )
+        output="software VAT is 6%",)
     step = {"step_id": 1, "description": "增值税税率",
             "acceptance_criteria": ["确认软件服务适用 6% 增值税"]}
     result = asyncio.run(evaluator.run({"step": step, "specialist_result": specialist}))

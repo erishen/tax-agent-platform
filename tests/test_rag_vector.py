@@ -1,4 +1,4 @@
-"""Q5 (upgrade): dense-vector semantic retrieval.
+"""dense-vector semantic retrieval.
 
 Covers the move from TF-IDF keyword overlap to real cosine retrieval over
 local Ollama embeddings, plus the offline HashEmbedder fallback and the
@@ -10,46 +10,38 @@ from __future__ import annotations
 from datetime import date
 
 from tax_agent_platform.rag import RAGPipeline, TaxDocument
-from tax_agent_platform.rag.embeddings import (
-    HashEmbedder,
+from tax_agent_platform.rag.embeddings import (HashEmbedder,
     OllamaEmbedder,
     cosine,
-    get_default_embedder,
-)
+    get_default_embedder,)
 
 
 def _vat_doc() -> TaxDocument:
-    return TaxDocument(
-        doc_id="vat-2024",
+    return TaxDocument(doc_id="vat-2024",
         title="增值税规定 2024",
         content="## 增值税税率\n软件服务适用 6% 增值税税率，自 2024 年 1 月起施行。"
                 "Software services are subject to 6% VAT rate effective from January 2024.",
         effective_date=date(2024, 1, 1),
-        source="STA",
-    )
+        source="STA",)
 
 
 def _cit_doc() -> TaxDocument:
-    return TaxDocument(
-        doc_id="cit-2024",
+    return TaxDocument(doc_id="cit-2024",
         title="企业所得税指引 2024",
         content="## 企业所得税税率\n标准税率 25%。高新技术企业 15%。"
                 "Standard CIT rate is 25%. High-tech enterprises pay 15%.",
         effective_date=date(2024, 1, 1),
-        source="STA",
-    )
+        source="STA",)
 
 
 def _superseded_vat_doc() -> TaxDocument:
-    return TaxDocument(
-        doc_id="vat-2022",
+    return TaxDocument(doc_id="vat-2022",
         title="增值税规定 2022（已废止）",
         content="软件服务此前适用 13% 增值税税率，该规定已被 2024 年新规取代。"
                 "Software services were subject to 13% VAT rate; now superseded.",
         effective_date=date(2022, 1, 1),
         expiry_date=date(2023, 12, 31),
-        source="STA",
-    )
+        source="STA",)
 
 
 # ---- Deterministic offline tests (HashEmbedder, no network) ----
@@ -102,11 +94,9 @@ def test_default_embedder_returns_consistent_vectors():
 
 def test_ollama_embedder_falls_back_when_unreachable():
     """An unreachable Ollama URL must transparently use the hash fallback."""
-    emb = OllamaEmbedder(
-        model="nomic-embed-text",
+    emb = OllamaEmbedder(model="nomic-embed-text",
         url="http://127.0.0.1:9/api/embed",  # nothing listening here
-        timeout=2.0,
-    )
+        timeout=2.0,)
     vecs = emb.embed(["hello", "world"])
     assert len(vecs) == 2
     assert emb.dim > 0

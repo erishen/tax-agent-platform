@@ -79,13 +79,11 @@ class OllamaEmbedder(Embedder):
     timeout on every call after the first miss.
     """
 
-    def __init__(
-        self,
+    def __init__(self,
         model: str = DEFAULT_EMBED_MODEL,
         url: str = DEFAULT_OLLAMA_URL,
         fallback: Embedder | None = None,
-        timeout: float = 10.0,
-    ) -> None:
+        timeout: float = 10.0,) -> None:
         self.model = model
         self.url = url
         self.timeout = timeout
@@ -104,10 +102,8 @@ class OllamaEmbedder(Embedder):
                     self.dim = len(vectors[0])
                 return vectors
             except Exception as exc:  # noqa: BLE001 — server down / bad payload
-                logger.warning(
-                    "Ollama embed (%s) unavailable, using fallback embedder: %s",
-                    self.model, exc,
-                )
+                logger.warning("Ollama embed (%s) unavailable, using fallback embedder: %s",
+                    self.model, exc,)
                 self._mode = "fallback"
                 self.dim = self._fallback.dim
                 return self._fallback.embed(texts)
@@ -117,11 +113,9 @@ class OllamaEmbedder(Embedder):
 
     def _call_ollama(self, texts: List[str]) -> List[List[float]]:
         payload = json.dumps({"model": self.model, "input": texts}).encode("utf-8")
-        req = urllib.request.Request(
-            self.url,
+        req = urllib.request.Request(self.url,
             data=payload,
-            headers={"Content-Type": "application/json"},
-        )
+            headers={"Content-Type": "application/json"},)
         with urllib.request.urlopen(req, timeout=self.timeout) as resp:
             data = json.loads(resp.read().decode("utf-8"))
         vectors = data.get("embeddings")
@@ -139,11 +133,9 @@ def get_default_embedder() -> Embedder:
     """
     from tax_agent_platform.config import settings
 
-    return OllamaEmbedder(
-        model=settings.embedding_model,
+    return OllamaEmbedder(model=settings.embedding_model,
         url=settings.embedding_url,
-        timeout=settings.embedding_timeout,
-    )
+        timeout=settings.embedding_timeout,)
 
 
 def cosine(a: List[float], b: List[float]) -> float:

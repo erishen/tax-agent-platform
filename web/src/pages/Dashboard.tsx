@@ -8,7 +8,7 @@ export default function Dashboard() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    // Q4: asyncio.gather — frontend mirrors backend concurrent fetch
+    //  asyncio.gather — frontend mirrors backend concurrent fetch
     Promise.all([
       apiFetch<DashboardData>('/dashboard/1'),
       apiFetch<LLMStatus>('/llm/status'),
@@ -27,7 +27,7 @@ export default function Dashboard() {
   return (
     <>
       <h1 className="page-title">Dashboard</h1>
-      <p className="page-desc">Q4: asyncio.gather concurrent data fetching with timeout fallback</p>
+      <p className="page-desc"> asyncio.gather concurrent data fetching with timeout fallback</p>
 
       <div className="grid-3">
         <div className="card">

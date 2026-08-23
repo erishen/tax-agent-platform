@@ -1,4 +1,4 @@
-"""Q6: Tool management with dependency injection.
+""" Tool management with dependency injection.
 
 Demonstrates:
 - RESTful API design for tool CRUD
@@ -31,8 +31,7 @@ class ToolRegistry:
     def _seed_default_tools(self) -> None:
         """Pre-register example tools for demo purposes."""
         defaults = [
-            ToolCreate(
-                tool_name="calculate_tax",
+            ToolCreate(tool_name="calculate_tax",
                 description="Calculate tax amount based on income, deductions, and applicable tax brackets",
                 parameters_schema={
                     "type": "object",
@@ -43,10 +42,8 @@ class ToolRegistry:
                     },
                     "required": ["income", "year"],
                 },
-                endpoint_url="http://localhost:8001/tools/calculate_tax/call",
-            ),
-            ToolCreate(
-                tool_name="search_regulation",
+                endpoint_url="http://localhost:8001/tools/calculate_tax/call",),
+            ToolCreate(tool_name="search_regulation",
                 description="Search tax regulations by keyword, category, and effective date range",
                 parameters_schema={
                     "type": "object",
@@ -58,10 +55,8 @@ class ToolRegistry:
                     },
                     "required": ["keyword"],
                 },
-                endpoint_url="http://localhost:8001/tools/search_regulation/call",
-            ),
-            ToolCreate(
-                tool_name="validate_invoice",
+                endpoint_url="http://localhost:8001/tools/search_regulation/call",),
+            ToolCreate(tool_name="validate_invoice",
                 description="Validate invoice format, tax ID, and compliance with local tax regulations",
                 parameters_schema={
                     "type": "object",
@@ -72,10 +67,8 @@ class ToolRegistry:
                     },
                     "required": ["invoice_number", "tax_id"],
                 },
-                endpoint_url="http://localhost:8001/tools/validate_invoice/call",
-            ),
-            ToolCreate(
-                tool_name="generate_report",
+                endpoint_url="http://localhost:8001/tools/validate_invoice/call",),
+            ToolCreate(tool_name="generate_report",
                 description="Generate compliance or audit report for a given tax period and entity",
                 parameters_schema={
                     "type": "object",
@@ -87,8 +80,7 @@ class ToolRegistry:
                     },
                     "required": ["entity_id", "period_start", "period_end"],
                 },
-                endpoint_url="http://localhost:8001/tools/generate_report/call",
-            ),
+                endpoint_url="http://localhost:8001/tools/generate_report/call",),
         ]
         for tool in defaults:
             self.register(tool)
@@ -109,12 +101,10 @@ class ToolRegistry:
             "created_at": time.time(),
         }
         self._tools[self._counter] = record
-        return ToolInfo(
-            id=record["id"],
+        return ToolInfo(id=record["id"],
             tool_name=record["tool_name"],
             description=record["description"],
-            created_at=record["created_at"],
-        )
+            created_at=record["created_at"],)
 
     def list_tools(self) -> list[ToolInfo]:
         """List all registered tools — supports Agent tool discovery."""
@@ -138,7 +128,7 @@ class ToolRegistry:
         return None
 
 
-# Per-tenant registries (Q8: data isolation). Each tenant gets its own
+# Per-tenant registries (data isolation). Each tenant gets its own
 # ToolRegistry (seeded with the default demo tools), so a tool registered
 # under one tenant is invisible to others. Keyed by tenant id, with
 # "_shared" used when no tenant context is present (tests, tooling).

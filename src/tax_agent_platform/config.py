@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    """Application settings loaded from environment / .env.
+    """Application settings loaded from environment /.env.
 
     Supports two interchangeable OpenAI-compatible LLM providers so you can
     switch or fail over between endpoints without touching code:
@@ -61,7 +61,7 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8001
 
-    # Auth — gateway-level tenant API keys (Q8 hardening).
+    # Auth — gateway-level tenant API keys (hardening).
     # When auth_required is True, every non-public request MUST present a valid
     # API key. The tenant identity is DERIVED from the key — a client can never
     # impersonate another tenant by forging X-Tenant-ID. Key map is JSON:
@@ -69,10 +69,8 @@ class Settings(BaseSettings):
     # A key may also be supplied as a pipe list: "acme-cn:k1|acme-us:k2".
     # Fail-closed: required=True with no configured keys => all requests 401.
     auth_required: bool = True
-    tenant_api_keys: dict[str, str] = Field(
-        default_factory=dict,
-        description="tenant_id -> api_key mapping (JSON or pipe format in env)",
-    )
+    tenant_api_keys: dict[str, str] = Field(default_factory=dict,
+        description="tenant_id -> api_key mapping (JSON or pipe format in env)",)
 
     model_config = {"env_prefix": "TAX_", "env_file": ".env"}
 

@@ -1,15 +1,13 @@
 """Main FastAPI application — all modules fully integrated.
 
 Integration chain:
-  Request → TenantMiddleware (Q8: contextvars)
+  Request → TenantMiddleware (contextvars)
     → API Endpoint
-      → PSEWorkflow(goal, rag=..., tools=..., llm=...) (Q9)
-        → PlannerAgent (Q7: LLM structured output)
-        → SpecialistAgent (Q5: RAG retrieval + Q6: Tool calls)
-        → EvaluatorAgent (Q7: Guardrails + Q9: evidence-driven)
-    → SSE Response (Q4: async streaming)
-
-Knowledge points: Q1-Q9
+      → PSEWorkflow(goal, rag=..., tools=..., llm=...) 
+        → PlannerAgent (LLM structured output)
+        → SpecialistAgent (RAG retrieval + Tool calls)
+        → EvaluatorAgent (Guardrails + evidence-driven)
+    → SSE Response (async streaming)
 """
 
 from __future__ import annotations
@@ -27,29 +25,25 @@ from sse_starlette.sse import EventSourceResponse
 from tax_agent_platform.agents import PSEWorkflow
 from tax_agent_platform.api import router as tools_router
 from tax_agent_platform.api.dashboard import router as dashboard_router
-from tax_agent_platform.middleware.tenant import (
-    TenantMiddleware,
+from tax_agent_platform.middleware.tenant import (TenantMiddleware,
     get_current_tenant_id,
-    set_current_tenant_id,
-)
+    set_current_tenant_id,)
 from tax_agent_platform.rag import RAGPipeline, TaxDocument, load_documents_from_corpus
 from tax_agent_platform.tools.registry import ToolRegistry, get_tool_registry
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(
-    title="Tax Agent Platform",
-    description="Enterprise tax advisory platform — interview knowledge points demo",
-    version="0.1.0",
-)
+app = FastAPI(title="Tax Agent Platform",
+    description="Enterprise tax advisory platform",
+    version="0.1.0",)
 
-# Q8: Multi-tenancy middleware
+#  Multi-tenancy middleware
 app.add_middleware(TenantMiddleware)
 
-# Q4: Async dashboard endpoints
+#  Async dashboard endpoints
 app.include_router(dashboard_router)
 
-# Q6: Tool management endpoints
+#  Tool management endpoints
 app.include_router(tools_router)
 
 
@@ -60,7 +54,7 @@ CORPUS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "corpus"
 
 
 def _resolve_corpus_dir(tenant_id: str | None) -> Path:
-    """Return the corpus directory for a tenant (Q8: data isolation).
+    """Return the corpus directory for a tenant (data isolation).
 
     Isolation strategy (in-memory RLS equivalent): if a tenant-specific
     directory ``data/corpus/<tenant_id>/`` exists and is non-empty, that
@@ -101,8 +95,7 @@ def _build_rag_pipeline(tenant_id: str | None = None) -> RAGPipeline:
 def _sample_documents() -> list[TaxDocument]:
     """Built-in fallback corpus (kept for zero-config startup)."""
     return [
-        TaxDocument(
-            doc_id="vat-2024",
+        TaxDocument(doc_id="vat-2024",
             title="增值税规定 2024 / VAT Regulations 2024",
             content="## 增值税税率变化 / VAT Rate Changes\n"
                     "软件服务适用 6% 增值税税率，自 2024 年 1 月起施行。"
@@ -112,10 +105,8 @@ def _sample_documents() -> list[TaxDocument]:
                     "Cross-border digital services may qualify for reduced rates under specific conditions. "
                     "Small-scale taxpayers with monthly sales below 100K CNY are exempt from VAT.",
             effective_date=date(2024, 1, 1),
-            source="State Taxation Administration",
-        ),
-        TaxDocument(
-            doc_id="vat-2022",
+            source="State Taxation Administration",),
+        TaxDocument(doc_id="vat-2022",
             title="增值税规定 2022（已废止）/ VAT Regulations 2022 (Superseded)",
             content="## 增值税税率 / VAT Rate\n"
                     "软件服务此前适用 13% 增值税税率，该规定已被 2024 年新规取代。\n"
@@ -123,10 +114,8 @@ def _sample_documents() -> list[TaxDocument]:
                     "This regulation has been superseded by 2024 regulations.",
             effective_date=date(2022, 1, 1),
             expiry_date=date(2023, 12, 31),
-            source="State Taxation Administration",
-        ),
-        TaxDocument(
-            doc_id="cit-2024",
+            source="State Taxation Administration",),
+        TaxDocument(doc_id="cit-2024",
             title="企业所得税指引 2024 / Corporate Income Tax Guide 2024",
             content="## 企业所得税税率 / CIT Rates\n"
                     "标准税率 25%。高新技术企业 15%。小型微利企业前 100 万元利润适用 20%。"
@@ -134,12 +123,11 @@ def _sample_documents() -> list[TaxDocument]:
                     "Standard rate: 25%. High-tech enterprises: 15%. Small low-profit enterprises: 20% on first 1M CNY. "
                     "R&D expenses qualify for 100% super deduction (additional 100% on top of actual expense).",
             effective_date=date(2024, 1, 1),
-            source="State Taxation Administration",
-        ),
+            source="State Taxation Administration",),
     ]
 
 
-# Per-tenant RAG pipelines (Q8: data isolation). Each tenant gets its own
+# Per-tenant RAG pipelines (data isolation). Each tenant gets its own
 # in-memory pipeline built from its resolved corpus, so switching X-Tenant-ID
 # yields a genuinely separate knowledge base. Keyed by tenant id, with
 # "_shared" used when no tenant context is present (e.g. tests, tooling).
@@ -167,7 +155,7 @@ def reload_rag_pipeline() -> int:
     return _rag_pipelines[key].document_count()
 
 
-# ---- Q7: Shared LLM client (default provider from settings, e.g. "primary") ----
+# ----  Shared LLM client (default provider from settings, e.g. "primary") ----
 
 _llm_client: Any | None = None
 _llm_init_done = False
@@ -178,8 +166,7 @@ def get_llm_client() -> Any | None:
 
     Returns None (never raises) when no API key / model is configured, so the
     Planner gracefully falls back to rule-based planning and the app keeps
-    running. Configure TAX_PRIMARY_* (default provider) or TAX_SECONDARY_* in
-    .env to enable real LLM-driven structured planning.
+    running. Configure TAX_PRIMARY_* (default provider) or TAX_SECONDARY_* in.env to enable real LLM-driven structured planning.
     """
     global _llm_client, _llm_init_done
     if not _llm_init_done:
@@ -195,14 +182,12 @@ def get_llm_client() -> Any | None:
     return _llm_client
 
 
-# ---- Q9: Integrated Agent workflow endpoint ----
+# ----  Integrated Agent workflow endpoint ----
 
-def _run_workflow_in_thread(
-    workflow: "PSEWorkflow",
+def _run_workflow_in_thread(workflow: "PSEWorkflow",
     goal: str,
     tenant_id: str | None,
-    on_event: Any = None,
-) -> dict[str, Any]:
+    on_event: Any = None,) -> dict[str, Any]:
     """Execute the (synchronous-blocking) workflow off the event loop.
 
     The OpenAI client is synchronous, so every LLM call blocks the caller for
@@ -227,43 +212,33 @@ def _run_workflow_in_thread(
 
 
 @app.post("/agent/run", tags=["Agent"])
-async def run_agent_workflow(
-    goal: str,
+async def run_agent_workflow(goal: str,
     rag: RAGPipeline = Depends(get_rag_pipeline),
     tools: ToolRegistry = Depends(get_tool_registry),
-    llm: Any = Depends(get_llm_client),
-) -> dict[str, Any]:
+    llm: Any = Depends(get_llm_client),) -> dict[str, Any]:
     """Run PSE workflow with full integration: RAG + Tools + LLM + Guardrails + Multi-tenancy."""
     from tax_agent_platform.config import settings
-    workflow = PSEWorkflow(
-        max_retries=settings.max_retries,
+    workflow = PSEWorkflow(max_retries=settings.max_retries,
         rag_pipeline=rag,
         tool_registry=tools,
-        llm_client=llm,
-    )
+        llm_client=llm,)
     # Offload the blocking workflow to a worker thread (see _run_workflow_in_thread).
     tenant_id = get_current_tenant_id()
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(
-        None, lambda: _run_workflow_in_thread(workflow, goal, tenant_id)
-    )
+    return await loop.run_in_executor(None, lambda: _run_workflow_in_thread(workflow, goal, tenant_id))
 
 
 @app.get("/agent/stream", tags=["Agent"])
-async def stream_agent_workflow(
-    goal: str,
+async def stream_agent_workflow(goal: str,
     rag: RAGPipeline = Depends(get_rag_pipeline),
     tools: ToolRegistry = Depends(get_tool_registry),
-    llm: Any = Depends(get_llm_client),
-) -> EventSourceResponse:
-    """SSE stream for real-time PSE agent execution (Q4/Q9)."""
+    llm: Any = Depends(get_llm_client),) -> EventSourceResponse:
+    """SSE stream for real-time PSE agent execution."""
     from tax_agent_platform.config import settings
-    workflow = PSEWorkflow(
-        max_retries=settings.max_retries,
+    workflow = PSEWorkflow(max_retries=settings.max_retries,
         rag_pipeline=rag,
         tool_registry=tools,
-        llm_client=llm,
-    )
+        llm_client=llm,)
 
     async def event_generator():
         # Drive the SAME workflow.run used by /agent/run, emitting progress via
@@ -368,16 +343,14 @@ async def stream_agent_workflow(
     return EventSourceResponse(event_generator())
 
 
-# ---- Q5: RAG query endpoint ----
+# ----  RAG query endpoint ----
 
 @app.get("/rag/query", tags=["RAG"])
-async def rag_query(
-    question: str,
+async def rag_query(question: str,
     top_k: int = 5,
     active_only: bool = True,
-    rag: RAGPipeline = Depends(get_rag_pipeline),
-) -> list[dict[str, Any]]:
-    """Query the RAG pipeline: coarse recall → Cross-Encoder rerank → timeliness filter (Q5).
+    rag: RAGPipeline = Depends(get_rag_pipeline),) -> list[dict[str, Any]]:
+    """Query the RAG pipeline: coarse recall → Cross-Encoder rerank → timeliness filter.
 
     ``active_only`` (default True) hides superseded regulations; set it to
     False to include them (e.g. compare the old 13% VAT rate vs the new 6%).
@@ -387,10 +360,8 @@ async def rag_query(
 
 
 @app.get("/rag/documents", tags=["RAG"])
-async def rag_documents(
-    rag: RAGPipeline = Depends(get_rag_pipeline),
-) -> list[dict[str, Any]]:
-    """List all loaded knowledge-base documents with timeliness status (Q5.3).
+async def rag_documents(rag: RAGPipeline = Depends(get_rag_pipeline),) -> list[dict[str, Any]]:
+    """List all loaded knowledge-base documents with timeliness status.
 
     Lets the front-end knowledge-base panel show what the corpus actually
     contains, including which regulations are currently active vs superseded.
@@ -408,11 +379,11 @@ async def rag_reload() -> dict[str, Any]:
     return {"status": "reloaded", "documents": count}
 
 
-# ---- Q7: LLM health check ----
+# ----  LLM health check ----
 
 @app.get("/llm/status", tags=["LLM"])
 async def llm_status() -> dict[str, Any]:
-    """Check LLM client status: active provider + guardrails/circuit-breaker info (Q7)."""
+    """Check LLM client status: active provider + guardrails/circuit-breaker info."""
     from tax_agent_platform.config import settings
     provider = settings.llm_provider
     if provider == "secondary":
@@ -430,11 +401,11 @@ async def llm_status() -> dict[str, Any]:
     }
 
 
-# ---- Q8: Tenant info ----
+# ----  Tenant info ----
 
 @app.get("/tenant/me", tags=["Tenant"])
 async def tenant_info() -> dict[str, Any]:
-    """Get current tenant context (Q8: contextvars isolation)."""
+    """Get current tenant context (contextvars isolation)."""
     from tax_agent_platform.middleware.tenant import get_tenant
     tenant_id = get_current_tenant_id()
     if not tenant_id:

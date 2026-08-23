@@ -86,7 +86,7 @@ export default function AgentPage() {
   return (
     <>
       <h1 className="page-title">Agent Workflow</h1>
-      <p className="page-desc">Q9: PSE (Planner-Specialist-Evaluator) three-role agent with evidence-driven verification + SSE streaming</p>
+      <p className="page-desc"> PSE (Planner-Specialist-Evaluator) three-role agent with evidence-driven verification + SSE streaming</p>
 
       <div className="input-group">
         <input

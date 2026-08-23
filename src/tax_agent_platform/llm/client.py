@@ -1,4 +1,4 @@
-"""Q7: LLM client with structured output, retry/circuit-breaker, and guardrails.
+""" LLM client with structured output, retry/circuit-breaker, and guardrails.
 
 Demonstrates:
 1. Structured output validation (Pydantic re-parse of LLM JSON)
@@ -92,7 +92,7 @@ SENSITIVE_PATTERNS = [
 
 
 class Guardrails:
-    """Multi-layer safety guardrails for LLM I/O (Q7)."""
+    """Multi-layer safety guardrails for LLM I/O."""
 
     @staticmethod
     def check_input(text: str) -> GuardrailResult:
@@ -192,19 +192,17 @@ class LLMClient:
             label = "PRIMARY"
 
         if not api_key:
-            raise RuntimeError(f"未设置 {label}_API_KEY。请在 .env 中配置。")
+            raise RuntimeError(f"未设置 {label}_API_KEY。请在.env 中配置。")
         if not self._model:
-            raise RuntimeError(f"未设置 {label}_MODEL。请在 .env 中补充模型名。")
+            raise RuntimeError(f"未设置 {label}_MODEL。请在.env 中补充模型名。")
 
         self._client = OpenAI(api_key=api_key, base_url=base_url or None)
         self._breaker = CircuitBreaker(threshold=settings.circuit_breaker_threshold)
         self._guardrails = Guardrails()
 
-    @retry(
-        stop=stop_after_attempt(3),
+    @retry(stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=10),
-        retry=retry_if_exception_type((json.JSONDecodeError, ValidationError)),
-    )
+        retry=retry_if_exception_type((json.JSONDecodeError, ValidationError)),)
     def structured_call(self, messages: list[dict[str, str]], response_model: type[T], usage: dict | None = None) -> T:
         """Call LLM and parse response into a Pydantic model (structured output).
 
@@ -232,13 +230,11 @@ class LLMClient:
             logger.info("Redacted %d PII token(s) from user input before LLM call", pii_found)
 
         try:
-            response = self._client.chat.completions.create(
-                model=self._model,
+            response = self._client.chat.completions.create(model=self._model,
                 messages=sent_messages,
                 temperature=0.0,
                 response_format={"type": "json_object"},
-                timeout=settings.llm_timeout,
-            )
+                timeout=settings.llm_timeout,)
         except Exception as exc:  # noqa: BLE001 — infra/API failure
             # A timeout, 5xx, or connection error is exactly the outage the
             # circuit breaker exists to catch. Record it so the breaker actually
@@ -290,12 +286,10 @@ class LLMClient:
             logger.info("Redacted %d PII token(s) from user input before LLM call", pii_found)
 
         try:
-            response = self._client.chat.completions.create(
-                model=self._model,
+            response = self._client.chat.completions.create(model=self._model,
                 messages=sent_messages,
                 temperature=0.0,
-                timeout=settings.llm_timeout,
-            )
+                timeout=settings.llm_timeout,)
         except Exception as exc:  # noqa: BLE001 — infra/API failure
             self._breaker.record_failure()
             logger.error("LLM API call failed: %s", exc)
@@ -345,8 +339,6 @@ class LLMClient:
             price = {"prompt": settings.secondary_price_prompt, "completion": settings.secondary_price_completion}
         else:
             price = {"prompt": settings.primary_price_prompt, "completion": settings.primary_price_completion}
-        return round(
-            usage.get("prompt_tokens", 0) / 1000 * price["prompt"]
+        return round(usage.get("prompt_tokens", 0) / 1000 * price["prompt"]
             + usage.get("completion_tokens", 0) / 1000 * price["completion"],
-            6,
-        )
+            6,)

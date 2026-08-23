@@ -1,32 +1,32 @@
 # Tax Agent Platform
 
-Enterprise tax advisory platform demonstrating Enterprise interview knowledge points (Q1-Q9) via FastAPI + RAG + Multi-Agent + Multi-tenancy.
+Enterprise tax advisory platform built with FastAPI + RAG + Multi-Agent + Multi-tenancy.
 
-## Knowledge Points Mapping
+## Feature Modules
 
-| Q | Topic | Module | Key Pattern |
+| Topic | Module | Key Pattern |
 |---|-------|--------|-------------|
-| Q1 | Pydantic + Type Hints | `models.py` | Pydantic validation replaces manual checks → auto Swagger docs + testability |
-| Q2 | Code Quality / CI/CD | `.github/workflows/ci.yml`, `tests/` | Ruff lint + pytest CI pipeline |
-| Q3 | AI-Assisted Dev | — | Vibe Coding methodology (Figma MCP + Serena MCP + Playwright MCP) |
-| Q4 | Async + Timeout | `api/dashboard.py`, `app.py` | `asyncio.gather` + `wait_for` timeout + SSE streaming |
-| Q5 | RAG | `rag/`, `data/corpus/` | Semantic chunking → **dense-vector recall (local Ollama embedding, vector/hybrid)** → Cross-Encoder rerank → timeliness filter → dedup by doc_id |
-| Q6 | Tool Management + DI | `api/`, `tools/registry.py` | RESTful tool CRUD + `Depends()` injection |
-| Q7 | LLM Stability | `llm/client.py` | Structured output + tenacity retry + circuit breaker + guardrails + token billing |
-| Q8 | Multi-Tenancy | `middleware/tenant.py`, `app.py`, `tools/registry.py` | `contextvars` isolation + token-bucket rate limit + **per-tenant RAG corpus / tool registry** + RLS filter |
-| Q9 | Multi-Agent | `agents/` | PSE (Planner/Specialist/Evaluator) + workflow engine + evidence-driven eval |
+| Pydantic + Type Hints | `models.py` | Pydantic validation replaces manual checks → auto Swagger docs + testability |
+| Code Quality / CI/CD | `.github/workflows/ci.yml`, `tests/` | Ruff lint + pytest CI pipeline |
+| AI-Assisted Dev | — | Vibe Coding methodology (Figma MCP + Serena MCP + Playwright MCP) |
+| Async + Timeout | `api/dashboard.py`, `app.py` | `asyncio.gather` + `wait_for` timeout + SSE streaming |
+| RAG | `rag/`, `data/corpus/` | Semantic chunking → **dense-vector recall (local Ollama embedding, vector/hybrid)** → Cross-Encoder rerank → timeliness filter → dedup by doc_id |
+| Tool Management + DI | `api/`, `tools/registry.py` | RESTful tool CRUD + `Depends()` injection |
+| LLM Stability | `llm/client.py` | Structured output + tenacity retry + circuit breaker + guardrails + token billing |
+| Multi-Tenancy | `middleware/tenant.py`, `app.py`, `tools/registry.py` | `contextvars` isolation + token-bucket rate limit + **per-tenant RAG corpus / tool registry** + RLS filter |
+| Multi-Agent | `agents/` | PSE (Planner/Specialist/Evaluator) + workflow engine + evidence-driven eval |
 
 ## Architecture
 
 ```
-Request → TenantMiddleware (Q8: API key → tenant → contextvars)
-  → API Endpoint (Q6: Depends injects RAG + Tools)
+Request → TenantMiddleware (API key → tenant → contextvars)
+  → API Endpoint (Depends injects RAG + Tools)
     → PSEWorkflow
-      → PlannerAgent (Q7: LLMClient.structured_call)
-      → SpecialistAgent (Q5: RAGPipeline + Q6: ToolRegistry)
-      → EvaluatorAgent (Q7: Guardrails + Q9: evidence-driven)
+      → PlannerAgent (LLMClient.structured_call)
+      → SpecialistAgent (RAGPipeline +  ToolRegistry)
+      → EvaluatorAgent (Guardrails +  evidence-driven)
     → PARTIAL/FAIL → auto-retry (max 3)
-  → SSE Response (Q4: real-time streaming)
+  → SSE Response (real-time streaming)
 ```
 
 ## Quick Start
@@ -49,16 +49,16 @@ make lint
 
 | Method | Path | Tag | Description |
 |--------|------|-----|-------------|
-| GET | `/dashboard/{user_id}` | Dashboard | Q4: Async concurrent microservice calls with timeout |
-| POST | `/tools/` | AI Tools | Q6: Register new Agent tool |
-| GET | `/tools/` | AI Tools | Q6: List available tools |
-| POST | `/agent/run?goal=...` | Agent | Q9: Run PSE workflow (returns `token_usage`) |
-| GET | `/agent/stream?goal=...` | Agent | Q4/Q9: SSE real-time agent execution (result event carries `token_usage`) |
-| GET | `/rag/query?question=...` | RAG | Q5: Two-stage retrieval + rerank + dedup |
+| GET | `/dashboard/{user_id}` | Dashboard |  Async concurrent microservice calls with timeout |
+| POST | `/tools/` | AI Tools |  Register new Agent tool |
+| GET | `/tools/` | AI Tools |  List available tools |
+| POST | `/agent/run?goal=...` | Agent |  Run PSE workflow (returns `token_usage`) |
+| GET | `/agent/stream?goal=...` | Agent |  SSE real-time agent execution (result event carries `token_usage`) |
+| GET | `/rag/query?question=...` | RAG |  Two-stage retrieval + rerank + dedup |
 | GET | `/rag/documents` | RAG | List all knowledge-base documents with active/superseded status |
 | POST | `/rag/reload` | RAG | Hot-reload the corpus from disk (no restart needed) |
-| GET | `/llm/status` | LLM | Q7: Circuit breaker + guardrails status |
-| GET | `/tenant/me` | Tenant | Q8: Current tenant context |
+| GET | `/llm/status` | LLM |  Circuit breaker + guardrails status |
+| GET | `/tenant/me` | Tenant |  Current tenant context |
 | GET | `/health` | System | Health check |
 
 ## Knowledge Base Corpus (RAG)
@@ -75,7 +75,7 @@ source: State Taxation Administration
 ---
 
 ## VAT Rate Changes
-Software services are subject to 6% VAT rate effective from January 2024 ...
+Software services are subject to 6% VAT rate effective from January 2024...
 ```
 
 - **Persistence**: loaded from disk at startup and on `POST /rag/reload`; survives
@@ -91,9 +91,9 @@ Software services are subject to 6% VAT rate effective from January 2024 ...
   `/agent/stream` responses include `token_usage` (prompt/completion/total/calls/cost/
   provider). Unit prices come from the env vars below and can be overridden in `.env`.
 
-## Multi-Tenant Data Isolation (Q8)
+## Multi-Tenant Data Isolation
 
-Tenant isolation is **real data separation** (each tenant gets its own in-memory RAG pipeline and tool registry) and is now protected by **gateway-level API-key auth** — the tenant is derived from the key, so clients cannot spoof `X-Tenant-ID`. Still demo-grade; see **Security & Privacy**.
+Tenant isolation is **real data separation** (each tenant gets its own in-memory RAG pipeline and tool registry) and is now protected by **gateway-level API-key auth** — the tenant is derived from the key, so clients cannot spoof `X-Tenant-ID`. Still prototype-grade; see **Security & Privacy**.
 
 - **Per-tenant RAG corpus**: `get_rag_pipeline()` builds a separate in-memory pipeline
   per `X-Tenant-ID`. If `data/corpus/<tenant_id>/` exists and contains `.md` files, that
@@ -109,7 +109,7 @@ Tenant isolation is **real data separation** (each tenant gets its own in-memory
   (covered by unit tests).
 - **Front-end switching**: the front-end sends the tenant's API key in the
   `X-API-Key` header — read from `localStorage` or, at build time, from
-  `VITE_TAX_API_KEY` (see `web/.env.example`), with a non-secret dev demo key
+  `VITE_TAX_API_KEY` (see `web/.env.example`), with a non-secret dev placeholder key
   as fallback. The tenant identity is **derived server-side from the key**; the
   client never asserts `X-Tenant-ID`. The "Tenant" page switcher swaps the
   stored key.
@@ -123,7 +123,7 @@ curl -H "X-API-Key: tax_demo_acme_us_2b9e" http://localhost:8001/rag/documents
 
 ## Security & Privacy
 
-This project is an interview-demo (Q1-Q9) and the following limits **must** be
+This project is a prototype and the following limits **must** be
 addressed before any production use:
 
 - **Gateway-level tenant API-key auth (implemented)**: Tenant identity is now
@@ -137,10 +137,10 @@ addressed before any production use:
   `TAX_TENANT_API_KEYS` (JSON or `tenant:key|...` pipe format). Set
   `TAX_AUTH_REQUIRED=false` to fall back to the legacy client-claimed
   `X-Tenant-ID` (dev only — re-opens the spoofing risk).
-  Demo dev keys are in `.env.example`
+  Development keys are in `.env.example`
   (e.g. `acme-cn=tax_demo_acme_cn_8f3a`). The front-end reads its key from
   `localStorage` or, at build time, from `VITE_TAX_API_KEY` (see
-  `web/.env.example`), falling back to the same dev demo keys.
+  `web/.env.example`), falling back to the same dev placeholder keys.
   **In production, issue per-tenant keys server-side — never ship real keys in
   a SPA** (the bundled fallback keys are non-secret dev placeholders only).
 - **PII egress to third-party LLM**: the user's `goal` (a tax question that may
@@ -170,31 +170,31 @@ addressed before any production use:
 ## Testing with curl
 
 ```bash
-# Q8: Multi-tenancy — auth requires an API key (tenant is derived from it)
+#  Multi-tenancy — auth requires an API key (tenant is derived from it)
 curl -H "X-API-Key: tax_demo_acme_cn_8f3a" http://localhost:8001/tenant/me
 
-# Q4: Async dashboard
+#  Async dashboard
 curl -H "X-API-Key: tax_demo_acme_cn_8f3a" http://localhost:8001/dashboard/1
 
-# Q6: Register a tool
+#  Register a tool
 curl -X POST http://localhost:8001/tools/ \
   -H "X-API-Key: tax_demo_acme_cn_8f3a" \
   -H "Content-Type: application/json" \
   -d '{"tool_name":"tax_calculator","description":"Calculate VAT/CIT amounts","endpoint_url":"http://tax-service/calculate"}'
 
-# Q9: Run PSE agent workflow
+#  Run PSE agent workflow
 curl -H "X-API-Key: tax_demo_acme_cn_8f3a" "http://localhost:8001/agent/run?goal=VAT+rate+for+software"
 
-# Q5: RAG query
+#  RAG query
 curl -H "X-API-Key: tax_demo_acme_cn_8f3a" "http://localhost:8001/rag/query?question=software+VAT+rate"
 
-# Q5: List knowledge-base documents (with active status)
+#  List knowledge-base documents (with active status)
 curl -H "X-API-Key: tax_demo_acme_cn_8f3a" http://localhost:8001/rag/documents
 
-# Q5: Hot-reload the corpus
+#  Hot-reload the corpus
 curl -X POST -H "X-API-Key: tax_demo_acme_cn_8f3a" http://localhost:8001/rag/reload
 
-# Q4/Q9: SSE stream
+#  SSE stream
 curl -N -H "X-API-Key: tax_demo_acme_cn_8f3a" "http://localhost:8001/agent/stream?goal=CIT+deduction"
 ```
 
@@ -204,35 +204,35 @@ curl -N -H "X-API-Key: tax_demo_acme_cn_8f3a" "http://localhost:8001/agent/strea
 tax-agent-platform/
 ├── src/tax_agent_platform/
 │   ├── app.py                 # Main FastAPI app (integration hub)
-│   ├── config.py              # Q1: pydantic-settings
-│   ├── models.py              # Q1/Q6/Q7/Q8/Q9: Pydantic models
+│   ├── config.py              #  pydantic-settings
+│   ├── models.py              #  Pydantic models
 │   ├── api/
-│   │   ├── __init__.py        # Q6: Tool management routes
-│   │   └── dashboard.py       # Q4: Async dashboard routes
+│   │   ├── __init__.py        #  Tool management routes
+│   │   └── dashboard.py       #  Async dashboard routes
 │   ├── agents/
-│   │   └── __init__.py        # Q9: PSE framework + workflow engine
+│   │   └── __init__.py        #  PSE framework + workflow engine
 │   ├── rag/
-│   │   ├── __init__.py        # Q5: Chunking + retrieval + rerank + corpus load + dense store
-│   │   └── embeddings.py      # Q5: Local Ollama embedding (with offline fallback)
+│   │   ├── __init__.py        #  Chunking + retrieval + rerank + corpus load + dense store
+│   │   └── embeddings.py      #  Local Ollama embedding (with offline fallback)
 │   ├── llm/
 │   │   ├── __init__.py
-│   │   └── client.py          # Q7: Structured output + retry + circuit breaker + guardrails
+│   │   └── client.py          #  Structured output + retry + circuit breaker + guardrails
 │   ├── middleware/
 │   │   ├── __init__.py
-│   │   └── tenant.py          # Q8: contextvars + rate limit + RLS
+│   │   └── tenant.py          #  contextvars + rate limit + RLS
 │   └── tools/
 │       ├── __init__.py
-│       └── registry.py        # Q6: Tool registration + DI
+│       └── registry.py        #  Tool registration + DI
 ├── tests/
-│   ├── test_core.py           # Q2: Unit tests (models / guardrails / RLS)
-│   ├── test_circuit_breaker.py# Q7: Circuit breaker (incl. guardrails don't trip it)
-│   ├── test_tenant_isolation.py # Q8: per-tenant isolation
-│   └── test_rag_vector.py     # Q5: Semantic vector recall
-├── .github/workflows/
-│   └── ci.yml                 # Q2: CI pipeline
+│   ├── test_core.py           #  Unit tests (models / guardrails / RLS)
+│   ├── test_circuit_breaker.py#  Circuit breaker (incl. guardrails don't trip it)
+│   ├── test_tenant_isolation.py #  per-tenant isolation
+│   └── test_rag_vector.py     #  Semantic vector recall
+├──.github/workflows/
+│   └── ci.yml                 #  CI pipeline
 ├── web/                       # Front-end (Vite + React + TypeScript)
 │   └── src/                   #   api.ts / pages / App.tsx
-├── .env.example               # Env var sample (copy to .env to fill secrets)
+├──.env.example               # Env var sample (copy to.env to fill secrets)
 ├── Makefile
 └── pyproject.toml
 ```

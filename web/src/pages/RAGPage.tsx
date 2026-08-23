@@ -71,7 +71,7 @@ export default function RAGPage() {
   return (
     <>
       <h1 className="page-title">RAG Retrieval</h1>
-      <p className="page-desc">Q5: Semantic chunking + two-stage retrieval + Cross-Encoder reranking + recency filter</p>
+      <p className="page-desc"> Semantic chunking + two-stage retrieval + Cross-Encoder reranking + recency filter</p>
 
       <div className="input-group">
         <input
