@@ -1,4 +1,4 @@
-""" RAG module — chunking, vector retrieval, re-ranking, and timeliness.
+"""RAG module — chunking, vector retrieval, re-ranking, and timeliness.
 
 Demonstrates:
 1. Semantic chunking with overlap (vs fixed-length)
@@ -32,6 +32,7 @@ def _l2_normalize(v: list[float]) -> list[float]:
 
 # ----  Language-aware tokenization ----
 
+
 def tokenize(text: str) -> set[str]:
     """Tokenize text for keyword-overlap scoring, supporting CJK + Latin.
 
@@ -54,23 +55,27 @@ def tokenize(text: str) -> set[str]:
         for ch in run:
             tokens.add(ch)
         for i in range(len(run) - 1):
-            tokens.add(run[i:i + 2])
+            tokens.add(run[i : i + 2])
     return tokens
 
 
 # ----  Chunking Strategies ----
 
+
 @dataclass
 class Chunk:
     """A text chunk with metadata for retrieval."""
+
     content: str
     metadata: dict[str, Any] = field(default_factory=dict)
     index: int = 0
 
 
-def chunk_by_fixed_length(text: str,
+def chunk_by_fixed_length(
+    text: str,
     chunk_size: int = 512,
-    overlap: int = 64,) -> list[Chunk]:
+    overlap: int = 64,
+) -> list[Chunk]:
     """Fixed-length chunking with overlap.
 
     Simple but can split mid-sentence. Overlap (10-20%) prevents
@@ -87,9 +92,11 @@ def chunk_by_fixed_length(text: str,
     return chunks
 
 
-def chunk_by_semantic(text: str,
+def chunk_by_semantic(
+    text: str,
     max_chunk_size: int = 512,
-    overlap_sentences: int = 1,) -> list[Chunk]:
+    overlap_sentences: int = 1,
+) -> list[Chunk]:
     """Semantic chunking: split by Markdown headings / paragraphs, then by size.
 
     Preserves semantic boundaries (headings, paragraphs) better than
@@ -108,7 +115,9 @@ def chunk_by_semantic(text: str,
             chunks.append(Chunk(content=current.strip(), index=idx))
             # Keep overlap: last N sentences
             sentences = current.split("。")
-            overlap_text = "。".join(sentences[-overlap_sentences:]) if overlap_sentences > 0 else ""
+            overlap_text = (
+                "。".join(sentences[-overlap_sentences:]) if overlap_sentences > 0 else ""
+            )
             current = overlap_text + section
             idx += 1
         else:
@@ -122,9 +131,11 @@ def chunk_by_semantic(text: str,
 
 # ----  Document with Timeliness Metadata ----
 
+
 @dataclass
 class TaxDocument:
     """A tax regulation document with effective/expiry dates."""
+
     doc_id: str
     title: str
     content: str
@@ -137,16 +148,16 @@ class TaxDocument:
         check_date = on or date.today()
         if self.effective_date and check_date < self.effective_date:
             return False
-        if self.expiry_date and check_date > self.expiry_date:
-            return False
-        return True
+        return not (self.expiry_date and check_date > self.expiry_date)
 
 
 # ----  Two-stage Retrieval ----
 
+
 @dataclass
 class RetrievalResult:
     """A single retrieval result with score."""
+
     doc_id: str
     content: str
     score: float
@@ -178,12 +189,14 @@ class SemanticVectorStore:
         vectors = self._embedder.embed([c.content for c in chunks])
         self._embeddings[doc.doc_id] = [_l2_normalize(v) for v in vectors]
 
-    def coarse_recall(self,
+    def coarse_recall(
+        self,
         query_vec: list[float],
         query_text: str = "",
         top_k: int = 20,
         active_only: bool = True,
-        mode: str = "vector",) -> list[RetrievalResult]:
+        mode: str = "vector",
+    ) -> list[RetrievalResult]:
         """Stage 1: dense-vector coarse recall via cosine similarity.
 
         ``query_vec`` is the L2-normalized embedding of the question. Returns
@@ -210,14 +223,18 @@ class SemanticVectorStore:
                     overlap = len(query_terms & chunk_terms)
                     overlap_score = overlap / max(len(query_terms), 1)
                     score = 0.7 * cos + 0.3 * overlap_score
-                results.append(RetrievalResult(doc_id=doc_id,
-                    content=chunk.content,
-                    score=score,
-                    metadata={
-                        "doc_title": doc.title,
-                        "effective_date": str(doc.effective_date),
-                        "source": doc.source,
-                    },))
+                results.append(
+                    RetrievalResult(
+                        doc_id=doc_id,
+                        content=chunk.content,
+                        score=score,
+                        metadata={
+                            "doc_title": doc.title,
+                            "effective_date": str(doc.effective_date),
+                            "source": doc.source,
+                        },
+                    )
+                )
 
         results.sort(key=lambda r: r.score, reverse=True)
         return results[:top_k]
@@ -231,7 +248,9 @@ class ReRanker:
     heuristic for demonstration.
     """
 
-    def rerank(self, query: str, candidates: list[RetrievalResult], top_k: int = 5) -> list[RetrievalResult]:
+    def rerank(
+        self, query: str, candidates: list[RetrievalResult], top_k: int = 5
+    ) -> list[RetrievalResult]:
         """Re-rank candidates using a Cross-Encoder model.
 
         Cross-Encoder takes (query, document) pair and produces a
@@ -249,6 +268,7 @@ class ReRanker:
                 # More recent = higher boost
                 try:
                     from datetime import datetime
+
                     eff_date = datetime.strptime(effective, "%Y-%m-%d").date()
                     days_old = (date.today() - eff_date).days
                     boost = max(0, 1.0 - days_old / 365.0) * 0.3
@@ -274,7 +294,9 @@ class RAGPipeline:
     def add_document(self, doc: TaxDocument) -> None:
         self.store.add_document(doc)
 
-    def query(self, question: str, top_k: int = 5, active_only: bool = True) -> list[RetrievalResult]:
+    def query(
+        self, question: str, top_k: int = 5, active_only: bool = True
+    ) -> list[RetrievalResult]:
         """Two-stage retrieval: dense recall → Cross-Encoder rerank.
 
         Results are de-duplicated by ``doc_id`` (the highest-scored chunk per
@@ -284,7 +306,13 @@ class RAGPipeline:
         # Embed the question once, then run cosine recall against chunk vectors.
         qvec = _l2_normalize(self.embedder.embed([question])[0])
         # Stage 1: Dense-vector coarse recall
-        candidates = self.store.coarse_recall(qvec, query_text=question, top_k=50, active_only=active_only, mode=self.rag_mode,)
+        candidates = self.store.coarse_recall(
+            qvec,
+            query_text=question,
+            top_k=50,
+            active_only=active_only,
+            mode=self.rag_mode,
+        )
         if not candidates:
             return []
 
@@ -305,15 +333,17 @@ class RAGPipeline:
         """
         out: list[dict[str, Any]] = []
         for doc_id, doc in self.store._docs.items():
-            out.append({
-                "doc_id": doc_id,
-                "title": doc.title,
-                "source": doc.source,
-                "effective_date": str(doc.effective_date) if doc.effective_date else None,
-                "expiry_date": str(doc.expiry_date) if doc.expiry_date else None,
-                "active": doc.is_active(),
-                "chunks": len(self.store._chunks.get(doc_id, [])),
-            })
+            out.append(
+                {
+                    "doc_id": doc_id,
+                    "title": doc.title,
+                    "source": doc.source,
+                    "effective_date": str(doc.effective_date) if doc.effective_date else None,
+                    "expiry_date": str(doc.expiry_date) if doc.expiry_date else None,
+                    "active": doc.is_active(),
+                    "chunks": len(self.store._chunks.get(doc_id, [])),
+                }
+            )
         return out
 
     def document_count(self) -> int:
@@ -394,11 +424,15 @@ def load_documents_from_corpus(directory: str | os.PathLike) -> list[TaxDocument
         if any(d.doc_id == doc_id for d in docs):
             logger.warning("Duplicate doc_id %r in %s; skipping", doc_id, path)
             continue
-        docs.append(TaxDocument(doc_id=doc_id,
-            title=fm.get("title", doc_id),
-            content=content,
-            effective_date=_parse_date(fm.get("effective_date")),
-            expiry_date=_parse_date(fm.get("expiry_date")),
-            source=fm.get("source", ""),))
+        docs.append(
+            TaxDocument(
+                doc_id=doc_id,
+                title=fm.get("title", doc_id),
+                content=content,
+                effective_date=_parse_date(fm.get("effective_date")),
+                expiry_date=_parse_date(fm.get("expiry_date")),
+                source=fm.get("source", ""),
+            )
+        )
     logger.info("Loaded %d corpus documents from %s", len(docs), directory)
     return docs

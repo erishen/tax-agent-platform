@@ -69,8 +69,10 @@ class Settings(BaseSettings):
     # A key may also be supplied as a pipe list: "acme-cn:k1|acme-us:k2".
     # Fail-closed: required=True with no configured keys => all requests 401.
     auth_required: bool = True
-    tenant_api_keys: dict[str, str] = Field(default_factory=dict,
-        description="tenant_id -> api_key mapping (JSON or pipe format in env)",)
+    tenant_api_keys: dict[str, str] = Field(
+        default_factory=dict,
+        description="tenant_id -> api_key mapping (JSON or pipe format in env)",
+    )
 
     model_config = {"env_prefix": "TAX_", "env_file": ".env"}
 

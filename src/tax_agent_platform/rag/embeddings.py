@@ -24,7 +24,6 @@ import math
 import re
 import urllib.error
 import urllib.request
-from typing import List
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +36,7 @@ class Embedder:
 
     dim: int = 0
 
-    def embed(self, texts: List[str]) -> List[List[float]]:
+    def embed(self, texts: list[str]) -> list[list[float]]:
         raise NotImplementedError
 
 
@@ -54,14 +53,14 @@ class HashEmbedder(Embedder):
         self.dim = dim
         self.seed = seed
 
-    def embed(self, texts: List[str]) -> List[List[float]]:
+    def embed(self, texts: list[str]) -> list[list[float]]:
         return [self._embed_one(t) for t in texts]
 
-    def _embed_one(self, text: str) -> List[float]:
+    def _embed_one(self, text: str) -> list[float]:
         vec = [0.0] * self.dim
         tokens = re.findall(r"[a-z0-9]+|[一-鿿]", text.lower())
         for tok in tokens:
-            h = int(hashlib.md5(f"{self.seed}:{tok}".encode("utf-8")).hexdigest(), 16)
+            h = int(hashlib.md5(f"{self.seed}:{tok}".encode()).hexdigest(), 16)
             vec[h % self.dim] += 1.0
         norm = math.sqrt(sum(v * v for v in vec))
         if norm > 0:
@@ -79,11 +78,13 @@ class OllamaEmbedder(Embedder):
     timeout on every call after the first miss.
     """
 
-    def __init__(self,
+    def __init__(
+        self,
         model: str = DEFAULT_EMBED_MODEL,
         url: str = DEFAULT_OLLAMA_URL,
         fallback: Embedder | None = None,
-        timeout: float = 10.0,) -> None:
+        timeout: float = 10.0,
+    ) -> None:
         self.model = model
         self.url = url
         self.timeout = timeout
@@ -91,7 +92,7 @@ class OllamaEmbedder(Embedder):
         self.dim = 0
         self._mode: str | None = None  # "ollama" | "fallback"
 
-    def embed(self, texts: List[str]) -> List[List[float]]:
+    def embed(self, texts: list[str]) -> list[list[float]]:
         if not texts:
             return []
         if self._mode is None:
@@ -102,8 +103,11 @@ class OllamaEmbedder(Embedder):
                     self.dim = len(vectors[0])
                 return vectors
             except Exception as exc:  # noqa: BLE001 — server down / bad payload
-                logger.warning("Ollama embed (%s) unavailable, using fallback embedder: %s",
-                    self.model, exc,)
+                logger.warning(
+                    "Ollama embed (%s) unavailable, using fallback embedder: %s",
+                    self.model,
+                    exc,
+                )
                 self._mode = "fallback"
                 self.dim = self._fallback.dim
                 return self._fallback.embed(texts)
@@ -111,11 +115,13 @@ class OllamaEmbedder(Embedder):
             return self._call_ollama(texts)
         return self._fallback.embed(texts)
 
-    def _call_ollama(self, texts: List[str]) -> List[List[float]]:
+    def _call_ollama(self, texts: list[str]) -> list[list[float]]:
         payload = json.dumps({"model": self.model, "input": texts}).encode("utf-8")
-        req = urllib.request.Request(self.url,
+        req = urllib.request.Request(
+            self.url,
             data=payload,
-            headers={"Content-Type": "application/json"},)
+            headers={"Content-Type": "application/json"},
+        )
         with urllib.request.urlopen(req, timeout=self.timeout) as resp:
             data = json.loads(resp.read().decode("utf-8"))
         vectors = data.get("embeddings")
@@ -133,12 +139,14 @@ def get_default_embedder() -> Embedder:
     """
     from tax_agent_platform.config import settings
 
-    return OllamaEmbedder(model=settings.embedding_model,
+    return OllamaEmbedder(
+        model=settings.embedding_model,
         url=settings.embedding_url,
-        timeout=settings.embedding_timeout,)
+        timeout=settings.embedding_timeout,
+    )
 
 
-def cosine(a: List[float], b: List[float]) -> float:
+def cosine(a: list[float], b: list[float]) -> float:
     """Cosine similarity between two vectors (assumes non-negative magnitude)."""
     if not a or not b:
         return 0.0

@@ -1,4 +1,4 @@
-""" LLM client with structured output, retry/circuit-breaker, and guardrails.
+"""LLM client with structured output, retry/circuit-breaker, and guardrails.
 
 Demonstrates:
 1. Structured output validation (Pydantic re-parse of LLM JSON)
@@ -17,7 +17,7 @@ from typing import TypeVar
 
 from openai import OpenAI
 from pydantic import BaseModel, ValidationError
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from tax_agent_platform.config import settings
 from tax_agent_platform.models import GuardrailResult
@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T", bound=BaseModel)
 
 # ---- Circuit Breaker ----
+
 
 class CircuitBreaker:
     """Simple circuit breaker: opens after N consecutive failures, resets after cooldown."""
@@ -47,7 +48,9 @@ class CircuitBreaker:
         self.last_failure_time = time.time()
         if self.failure_count >= self.threshold:
             self.is_open = True
-            logger.warning("Circuit breaker OPENED after %d consecutive failures", self.failure_count)
+            logger.warning(
+                "Circuit breaker OPENED after %d consecutive failures", self.failure_count
+            )
 
     def can_proceed(self) -> bool:
         if not self.is_open:
@@ -100,7 +103,11 @@ class Guardrails:
         text_lower = text.lower()
         for pattern in PROMPT_INJECTION_PATTERNS:
             if re.search(pattern, text_lower):
-                return GuardrailResult(passed=False, reason="Potential prompt injection detected", category="prompt_injection")
+                return GuardrailResult(
+                    passed=False,
+                    reason="Potential prompt injection detected",
+                    category="prompt_injection",
+                )
         return GuardrailResult(passed=True)
 
     @staticmethod
@@ -109,7 +116,11 @@ class Guardrails:
         text_lower = text.lower()
         for pattern in SENSITIVE_PATTERNS:
             if re.search(pattern, text_lower):
-                return GuardrailResult(passed=False, reason="Sensitive data pattern detected in output", category="sensitive_data")
+                return GuardrailResult(
+                    passed=False,
+                    reason="Sensitive data pattern detected in output",
+                    category="sensitive_data",
+                )
         return GuardrailResult(passed=True)
 
 
@@ -170,6 +181,7 @@ def _redact_user_messages(messages: list[dict[str, str]]) -> tuple[list[dict[str
 
 # ---- LLM Client ----
 
+
 class LLMClient:
     """LLM client with structured output, retry, circuit breaker, and guardrails.
 
@@ -200,10 +212,14 @@ class LLMClient:
         self._breaker = CircuitBreaker(threshold=settings.circuit_breaker_threshold)
         self._guardrails = Guardrails()
 
-    @retry(stop=stop_after_attempt(3),
+    @retry(
+        stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=10),
-        retry=retry_if_exception_type((json.JSONDecodeError, ValidationError)),)
-    def structured_call(self, messages: list[dict[str, str]], response_model: type[T], usage: dict | None = None) -> T:
+        retry=retry_if_exception_type((json.JSONDecodeError, ValidationError)),
+    )
+    def structured_call(
+        self, messages: list[dict[str, str]], response_model: type[T], usage: dict | None = None
+    ) -> T:
         """Call LLM and parse response into a Pydantic model (structured output).
 
         Key design:
@@ -230,12 +246,14 @@ class LLMClient:
             logger.info("Redacted %d PII token(s) from user input before LLM call", pii_found)
 
         try:
-            response = self._client.chat.completions.create(model=self._model,
+            response = self._client.chat.completions.create(
+                model=self._model,
                 messages=sent_messages,
                 temperature=0.0,
                 response_format={"type": "json_object"},
-                timeout=settings.llm_timeout,)
-        except Exception as exc:  # noqa: BLE001 — infra/API failure
+                timeout=settings.llm_timeout,
+            )
+        except Exception as exc:
             # A timeout, 5xx, or connection error is exactly the outage the
             # circuit breaker exists to catch. Record it so the breaker actually
             # opens and stops hammering a dead LLM (previously these failures
@@ -286,11 +304,13 @@ class LLMClient:
             logger.info("Redacted %d PII token(s) from user input before LLM call", pii_found)
 
         try:
-            response = self._client.chat.completions.create(model=self._model,
+            response = self._client.chat.completions.create(
+                model=self._model,
                 messages=sent_messages,
                 temperature=0.0,
-                timeout=settings.llm_timeout,)
-        except Exception as exc:  # noqa: BLE001 — infra/API failure
+                timeout=settings.llm_timeout,
+            )
+        except Exception as exc:
             self._breaker.record_failure()
             logger.error("LLM API call failed: %s", exc)
             raise
@@ -336,9 +356,17 @@ class LLMClient:
         placeholders.
         """
         if self._provider == "secondary":
-            price = {"prompt": settings.secondary_price_prompt, "completion": settings.secondary_price_completion}
+            price = {
+                "prompt": settings.secondary_price_prompt,
+                "completion": settings.secondary_price_completion,
+            }
         else:
-            price = {"prompt": settings.primary_price_prompt, "completion": settings.primary_price_completion}
-        return round(usage.get("prompt_tokens", 0) / 1000 * price["prompt"]
+            price = {
+                "prompt": settings.primary_price_prompt,
+                "completion": settings.primary_price_completion,
+            }
+        return round(
+            usage.get("prompt_tokens", 0) / 1000 * price["prompt"]
             + usage.get("completion_tokens", 0) / 1000 * price["completion"],
-            6,)
+            6,
+        )

@@ -1,4 +1,4 @@
-""" Multi-tenancy middleware — contextvars, auth, rate limiting, data isolation.
+"""Multi-tenancy middleware — contextvars, auth, rate limiting, data isolation.
 
 Demonstrates:
 1. API-key gateway auth: tenant identity is DERIVED from a credential
@@ -29,7 +29,9 @@ logger = logging.getLogger(__name__)
 
 # ContextVar ensures tenant_id is correctly propagated across async coroutines
 # without passing it through every function signature
-_tenant_context: contextvars.ContextVar[str | None] = contextvars.ContextVar("tenant_id", default=None)
+_tenant_context: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "tenant_id", default=None
+)
 
 
 def get_current_tenant_id() -> str | None:
@@ -46,7 +48,9 @@ def set_current_tenant_id(tenant_id: str | None) -> None:
 
 # In production: backed by database with encrypted connection strings
 _TENANTS: dict[str, TenantInfo] = {
-    "acme-cn": TenantInfo(tenant_id="acme-cn", name="ACME China", plan="enterprise", rate_limit=200),
+    "acme-cn": TenantInfo(
+        tenant_id="acme-cn", name="ACME China", plan="enterprise", rate_limit=200
+    ),
     "acme-us": TenantInfo(tenant_id="acme-us", name="ACME US", plan="enterprise", rate_limit=200),
     "demo": TenantInfo(tenant_id="demo", name="Demo Corp", plan="standard", rate_limit=50),
 }
@@ -59,9 +63,11 @@ def get_tenant(tenant_id: str) -> TenantInfo | None:
 
 # ----  Token-bucket rate limiter ----
 
+
 @dataclass
 class TokenBucket:
     """Token bucket rate limiter for a single tenant."""
+
     rate: int  # tokens per minute
     capacity: int = 0
     tokens: float = 0
@@ -97,6 +103,7 @@ class RateLimiter:
 
 
 # ----  Middleware ----
+
 
 class TenantMiddleware(BaseHTTPMiddleware):
     """FastAPI middleware that:
@@ -150,32 +157,44 @@ class TenantMiddleware(BaseHTTPMiddleware):
             # intentionally ignored so a caller cannot impersonate a tenant.
             tenant_id = self._tenant_for_key(api_key)
             if tenant_id is None:
-                return Response(content='{"error": "Invalid API key"}',
+                return Response(
+                    content='{"error": "Invalid API key"}',
                     status_code=401,
-                    media_type="application/json",)
+                    media_type="application/json",
+                )
         else:
             # No key presented.
             if settings.auth_required:
-                return Response(content='{"error": "API key required (X-API-Key / Authorization: Bearer / ?api_key=)"}',
+                return Response(
+                    content='{"error": "API key required (X-API-Key / Authorization: Bearer / ?api_key=)"}',
                     status_code=401,
-                    media_type="application/json",)
+                    media_type="application/json",
+                )
             # Dev fallback (auth disabled): trust the client-claimed tenant.
             tenant_id = request.headers.get("X-Tenant-ID") or request.query_params.get("tenant")
             if not tenant_id:
-                return Response(content='{"error": "X-Tenant-ID header required"}',
+                return Response(
+                    content='{"error": "X-Tenant-ID header required"}',
                     status_code=400,
-                    media_type="application/json",)
+                    media_type="application/json",
+                )
 
         # Validate tenant existence
         tenant_info = get_tenant(tenant_id)
         if not tenant_info:
-            return Response(content=f'{{"error": "Unknown tenant: {tenant_id}"}}',
+            return Response(
+                content=f'{{"error": "Unknown tenant: {tenant_id}"}}',
                 status_code=403,
-                media_type="application/json",)
+                media_type="application/json",
+            )
 
         # Rate limiting (prevent noisy neighbor)
         if not self._limiter.is_allowed(tenant_id, tenant_info):
-            return Response(content='{"error": "Rate limit exceeded"}', status_code=429, media_type="application/json")
+            return Response(
+                content='{"error": "Rate limit exceeded"}',
+                status_code=429,
+                media_type="application/json",
+            )
 
         # Set tenant context — available in all downstream handlers via get_current_tenant_id()
         set_current_tenant_id(tenant_id)
@@ -190,7 +209,10 @@ class TenantMiddleware(BaseHTTPMiddleware):
 
 # ----  Row-Level Security pattern ----
 
-def apply_tenant_filter(query: str, params: dict[str, object] | None = None) -> tuple[str, dict[str, object]]:
+
+def apply_tenant_filter(
+    query: str, params: dict[str, object] | None = None
+) -> tuple[str, dict[str, object]]:
     """Automatically append tenant_id filter to SQL queries.
 
     In production, this would be integrated into SQLAlchemy's

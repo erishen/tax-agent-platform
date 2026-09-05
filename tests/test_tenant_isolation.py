@@ -1,4 +1,4 @@
-""" Multi-tenant data isolation — the real thing, not decoration.
+"""Multi-tenant data isolation — the real thing, not decoration.
 
 These tests prove that RAG corpora and tool registries are genuinely
 separated per tenant, and that the SQL Row-Level-Security helper actually
@@ -9,8 +9,10 @@ singletons where every tenant saw identical data.
 from __future__ import annotations
 
 import tax_agent_platform.app as app_mod
-from tax_agent_platform.middleware.tenant import (apply_tenant_filter,
-    set_current_tenant_id,)
+from tax_agent_platform.middleware.tenant import (
+    apply_tenant_filter,
+    set_current_tenant_id,
+)
 from tax_agent_platform.models import ToolCreate
 from tax_agent_platform.tools.registry import _registries, get_tool_registry
 
@@ -21,6 +23,7 @@ def _reset_caches() -> None:
 
 
 # ---- RAG per-tenant isolation ----
+
 
 def test_rag_pipeline_is_per_tenant_and_isolated():
     """acme-us has its own corpus dir → different docs from the shared default."""
@@ -72,16 +75,21 @@ def test_rag_reload_only_affects_calling_tenant():
 
 # ---- ToolRegistry per-tenant isolation ----
 
+
 def test_tool_registry_is_per_tenant_and_isolated():
     """A tool registered under one tenant is invisible to another."""
     _reset_caches()
     try:
         set_current_tenant_id("acme-cn")
         reg_cn = get_tool_registry()
-        reg_cn.register(ToolCreate(tool_name="cn_only_tool",
-            description="A tool only ACME China registers",
-            parameters_schema={"type": "object", "properties": {}},
-            endpoint_url="http://localhost:8001/tools/cn_only_tool/call",))
+        reg_cn.register(
+            ToolCreate(
+                tool_name="cn_only_tool",
+                description="A tool only ACME China registers",
+                parameters_schema={"type": "object", "properties": {}},
+                endpoint_url="http://localhost:8001/tools/cn_only_tool/call",
+            )
+        )
         assert reg_cn.get_tool("cn_only_tool") is not None
 
         set_current_tenant_id("acme-us")
@@ -97,6 +105,7 @@ def test_tool_registry_is_per_tenant_and_isolated():
 
 
 # ---- Workflow thread offload propagates tenant context ----
+
 
 def test_run_workflow_in_thread_propagates_tenant():
     """The worker-thread runner must re-apply the tenant contextvar.
@@ -127,6 +136,7 @@ def test_run_workflow_in_thread_propagates_tenant():
 
 
 # ---- SQL Row-Level-Security helper (no longer dead code) ----
+
 
 def test_apply_tenant_filter_scopes_query():
     try:

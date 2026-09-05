@@ -39,6 +39,12 @@ packages = ["src/tax_agent_platform"]
 target-version = "py311"
 line-length = 100
 
+[tool.ruff.lint]
+# B008: FastAPI 的 Depends() 按框架约定写在参数默认值里
+# DTZ007/DTZ011: 法规生效/过期日、热度加权的“多少天前”都是纯日历日期（date，无时区语义），
+# date.today() 与 naive strptime 在此正是正确用法
+ignore = ["B008", "DTZ007", "DTZ011"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 # starlette 1.3.x prefers the `httpx2` fork and warns when the `httpx` package is

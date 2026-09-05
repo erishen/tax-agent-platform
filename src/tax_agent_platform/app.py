@@ -3,7 +3,7 @@
 Integration chain:
   Request → TenantMiddleware (contextvars)
     → API Endpoint
-      → PSEWorkflow(goal, rag=..., tools=..., llm=...) 
+      → PSEWorkflow(goal, rag=..., tools=..., llm=...)
         → PlannerAgent (LLM structured output)
         → SpecialistAgent (RAG retrieval + Tool calls)
         → EvaluatorAgent (Guardrails + evidence-driven)
@@ -19,23 +19,27 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, Depends
+from fastapi import Depends, FastAPI
 from sse_starlette.sse import EventSourceResponse
 
 from tax_agent_platform.agents import PSEWorkflow
 from tax_agent_platform.api import router as tools_router
 from tax_agent_platform.api.dashboard import router as dashboard_router
-from tax_agent_platform.middleware.tenant import (TenantMiddleware,
+from tax_agent_platform.middleware.tenant import (
+    TenantMiddleware,
     get_current_tenant_id,
-    set_current_tenant_id,)
+    set_current_tenant_id,
+)
 from tax_agent_platform.rag import RAGPipeline, TaxDocument, load_documents_from_corpus
 from tax_agent_platform.tools.registry import ToolRegistry, get_tool_registry
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Tax Agent Platform",
+app = FastAPI(
+    title="Tax Agent Platform",
     description="Enterprise tax advisory platform",
-    version="0.1.0",)
+    version="0.1.0",
+)
 
 #  Multi-tenancy middleware
 app.add_middleware(TenantMiddleware)
@@ -88,42 +92,50 @@ def _build_rag_pipeline(tenant_id: str | None = None) -> RAGPipeline:
         docs = _sample_documents()
     for d in docs:
         pipeline.add_document(d)
-    logger.info("Built RAG pipeline for tenant=%s from %s (%d docs)", tenant_id, corpus_dir, len(docs))
+    logger.info(
+        "Built RAG pipeline for tenant=%s from %s (%d docs)", tenant_id, corpus_dir, len(docs)
+    )
     return pipeline
 
 
 def _sample_documents() -> list[TaxDocument]:
     """Built-in fallback corpus (kept for zero-config startup)."""
     return [
-        TaxDocument(doc_id="vat-2024",
+        TaxDocument(
+            doc_id="vat-2024",
             title="增值税规定 2024 / VAT Regulations 2024",
             content="## 增值税税率变化 / VAT Rate Changes\n"
-                    "软件服务适用 6% 增值税税率，自 2024 年 1 月起施行。"
-                    "跨境数字服务在特定条件下可适用较低税率。"
-                    "月销售额低于 10 万元人民币的小规模纳税人免征增值税。\n"
-                    "Software services are subject to 6% VAT rate effective from January 2024. "
-                    "Cross-border digital services may qualify for reduced rates under specific conditions. "
-                    "Small-scale taxpayers with monthly sales below 100K CNY are exempt from VAT.",
+            "软件服务适用 6% 增值税税率，自 2024 年 1 月起施行。"
+            "跨境数字服务在特定条件下可适用较低税率。"
+            "月销售额低于 10 万元人民币的小规模纳税人免征增值税。\n"
+            "Software services are subject to 6% VAT rate effective from January 2024. "
+            "Cross-border digital services may qualify for reduced rates under specific conditions. "
+            "Small-scale taxpayers with monthly sales below 100K CNY are exempt from VAT.",
             effective_date=date(2024, 1, 1),
-            source="State Taxation Administration",),
-        TaxDocument(doc_id="vat-2022",
+            source="State Taxation Administration",
+        ),
+        TaxDocument(
+            doc_id="vat-2022",
             title="增值税规定 2022（已废止）/ VAT Regulations 2022 (Superseded)",
             content="## 增值税税率 / VAT Rate\n"
-                    "软件服务此前适用 13% 增值税税率，该规定已被 2024 年新规取代。\n"
-                    "Software services were subject to 13% VAT rate. "
-                    "This regulation has been superseded by 2024 regulations.",
+            "软件服务此前适用 13% 增值税税率，该规定已被 2024 年新规取代。\n"
+            "Software services were subject to 13% VAT rate. "
+            "This regulation has been superseded by 2024 regulations.",
             effective_date=date(2022, 1, 1),
             expiry_date=date(2023, 12, 31),
-            source="State Taxation Administration",),
-        TaxDocument(doc_id="cit-2024",
+            source="State Taxation Administration",
+        ),
+        TaxDocument(
+            doc_id="cit-2024",
             title="企业所得税指引 2024 / Corporate Income Tax Guide 2024",
             content="## 企业所得税税率 / CIT Rates\n"
-                    "标准税率 25%。高新技术企业 15%。小型微利企业前 100 万元利润适用 20%。"
-                    "研发费用可享受 100% 加计扣除（在实际支出基础上再加计 100%）。\n"
-                    "Standard rate: 25%. High-tech enterprises: 15%. Small low-profit enterprises: 20% on first 1M CNY. "
-                    "R&D expenses qualify for 100% super deduction (additional 100% on top of actual expense).",
+            "标准税率 25%。高新技术企业 15%。小型微利企业前 100 万元利润适用 20%。"
+            "研发费用可享受 100% 加计扣除（在实际支出基础上再加计 100%）。\n"
+            "Standard rate: 25%. High-tech enterprises: 15%. Small low-profit enterprises: 20% on first 1M CNY. "
+            "R&D expenses qualify for 100% super deduction (additional 100% on top of actual expense).",
             effective_date=date(2024, 1, 1),
-            source="State Taxation Administration",),
+            source="State Taxation Administration",
+        ),
     ]
 
 
@@ -173,10 +185,11 @@ def get_llm_client() -> Any | None:
         _llm_init_done = True
         from tax_agent_platform.config import settings
         from tax_agent_platform.llm.client import LLMClient
+
         try:
             _llm_client = LLMClient(provider=settings.llm_provider)
             logger.info("LLM client ready (provider=%s)", settings.llm_provider)
-        except Exception as e:  # missing key/model → run without LLM
+        except Exception as e:  # noqa: BLE001 - missing key/model → run without LLM
             logger.warning("LLM client unavailable (%s); Planner will use rule-based fallback", e)
             _llm_client = None
     return _llm_client
@@ -184,10 +197,13 @@ def get_llm_client() -> Any | None:
 
 # ----  Integrated Agent workflow endpoint ----
 
-def _run_workflow_in_thread(workflow: "PSEWorkflow",
+
+def _run_workflow_in_thread(
+    workflow: PSEWorkflow,
     goal: str,
     tenant_id: str | None,
-    on_event: Any = None,) -> dict[str, Any]:
+    on_event: Any = None,
+) -> dict[str, Any]:
     """Execute the (synchronous-blocking) workflow off the event loop.
 
     The OpenAI client is synchronous, so every LLM call blocks the caller for
@@ -212,33 +228,45 @@ def _run_workflow_in_thread(workflow: "PSEWorkflow",
 
 
 @app.post("/agent/run", tags=["Agent"])
-async def run_agent_workflow(goal: str,
+async def run_agent_workflow(
+    goal: str,
     rag: RAGPipeline = Depends(get_rag_pipeline),
     tools: ToolRegistry = Depends(get_tool_registry),
-    llm: Any = Depends(get_llm_client),) -> dict[str, Any]:
+    llm: Any = Depends(get_llm_client),
+) -> dict[str, Any]:
     """Run PSE workflow with full integration: RAG + Tools + LLM + Guardrails + Multi-tenancy."""
     from tax_agent_platform.config import settings
-    workflow = PSEWorkflow(max_retries=settings.max_retries,
+
+    workflow = PSEWorkflow(
+        max_retries=settings.max_retries,
         rag_pipeline=rag,
         tool_registry=tools,
-        llm_client=llm,)
+        llm_client=llm,
+    )
     # Offload the blocking workflow to a worker thread (see _run_workflow_in_thread).
     tenant_id = get_current_tenant_id()
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(None, lambda: _run_workflow_in_thread(workflow, goal, tenant_id))
+    return await loop.run_in_executor(
+        None, lambda: _run_workflow_in_thread(workflow, goal, tenant_id)
+    )
 
 
 @app.get("/agent/stream", tags=["Agent"])
-async def stream_agent_workflow(goal: str,
+async def stream_agent_workflow(
+    goal: str,
     rag: RAGPipeline = Depends(get_rag_pipeline),
     tools: ToolRegistry = Depends(get_tool_registry),
-    llm: Any = Depends(get_llm_client),) -> EventSourceResponse:
+    llm: Any = Depends(get_llm_client),
+) -> EventSourceResponse:
     """SSE stream for real-time PSE agent execution."""
     from tax_agent_platform.config import settings
-    workflow = PSEWorkflow(max_retries=settings.max_retries,
+
+    workflow = PSEWorkflow(
+        max_retries=settings.max_retries,
         rag_pipeline=rag,
         tool_registry=tools,
-        llm_client=llm,)
+        llm_client=llm,
+    )
 
     async def event_generator():
         # Drive the SAME workflow.run used by /agent/run, emitting progress via
@@ -289,7 +317,7 @@ async def stream_agent_workflow(goal: str,
         # queue when the thread completes.
         fut = loop.run_in_executor(None, _run_sync)
 
-        def _on_done(f: "asyncio.Future[dict[str, Any]]") -> None:
+        def _on_done(f: asyncio.Future[dict[str, Any]]) -> None:
             try:
                 res = f.result()
             except Exception as exc:  # noqa: BLE001
@@ -300,9 +328,16 @@ async def stream_agent_workflow(goal: str,
         fut.add_done_callback(_on_done)
 
         await _pace()
-        yield {"event": "planning", "data": json.dumps({
-            "status": "started", "goal": goal, "tenant": get_current_tenant_id(),
-        })}
+        yield {
+            "event": "planning",
+            "data": json.dumps(
+                {
+                    "status": "started",
+                    "goal": goal,
+                    "tenant": get_current_tenant_id(),
+                }
+            ),
+        }
 
         while True:
             et, pl = await queue.get()
@@ -313,54 +348,97 @@ async def stream_agent_workflow(goal: str,
                 await _pace()
                 yield {"event": "result", "data": json.dumps(pl, ensure_ascii=False, default=str)}
                 await _pace()
-                yield {"event": "done", "data": json.dumps({
-                    "status": "completed", "total_steps": len(state["steps"]),
-                })}
+                yield {
+                    "event": "done",
+                    "data": json.dumps(
+                        {
+                            "status": "completed",
+                            "total_steps": len(state["steps"]),
+                        }
+                    ),
+                }
                 break
             if et == "planning":
                 await _pace()
-                yield {"event": "planning", "data": json.dumps({
-                    "status": "completed", "output": pl.get("output"),
-                })}
+                yield {
+                    "event": "planning",
+                    "data": json.dumps(
+                        {
+                            "status": "completed",
+                            "output": pl.get("output"),
+                        }
+                    ),
+                }
             elif et == "step_started":
                 await _pace()
-                yield {"event": "executing", "data": json.dumps({
-                    "step": pl.get("step"), "status": "started",
-                })}
+                yield {
+                    "event": "executing",
+                    "data": json.dumps(
+                        {
+                            "step": pl.get("step"),
+                            "status": "started",
+                        }
+                    ),
+                }
             elif et == "step_executed":
                 await _pace()
-                yield {"event": "executing", "data": json.dumps({
-                    "step": pl.get("step"), "status": "completed",
-                    "evidence_count": pl.get("evidence_count"),
-                })}
+                yield {
+                    "event": "executing",
+                    "data": json.dumps(
+                        {
+                            "step": pl.get("step"),
+                            "status": "completed",
+                            "evidence_count": pl.get("evidence_count"),
+                        }
+                    ),
+                }
             elif et == "step_evaluated":
                 await _pace()
-                yield {"event": "evaluating", "data": json.dumps({
-                    "step": pl.get("step"), "verdict": pl.get("verdict"),
-                    "issues": pl.get("issues", []),
-                })}
+                yield {
+                    "event": "evaluating",
+                    "data": json.dumps(
+                        {
+                            "step": pl.get("step"),
+                            "verdict": pl.get("verdict"),
+                            "issues": pl.get("issues", []),
+                        }
+                    ),
+                }
 
     return EventSourceResponse(event_generator())
 
 
 # ----  RAG query endpoint ----
 
+
 @app.get("/rag/query", tags=["RAG"])
-async def rag_query(question: str,
+async def rag_query(
+    question: str,
     top_k: int = 5,
     active_only: bool = True,
-    rag: RAGPipeline = Depends(get_rag_pipeline),) -> list[dict[str, Any]]:
+    rag: RAGPipeline = Depends(get_rag_pipeline),
+) -> list[dict[str, Any]]:
     """Query the RAG pipeline: coarse recall → Cross-Encoder rerank → timeliness filter.
 
     ``active_only`` (default True) hides superseded regulations; set it to
     False to include them (e.g. compare the old 13% VAT rate vs the new 6%).
     """
     results = rag.query(question, top_k=top_k, active_only=active_only)
-    return [{"doc_id": r.doc_id, "content": r.content, "score": round(r.score, 4), "metadata": r.metadata} for r in results]
+    return [
+        {
+            "doc_id": r.doc_id,
+            "content": r.content,
+            "score": round(r.score, 4),
+            "metadata": r.metadata,
+        }
+        for r in results
+    ]
 
 
 @app.get("/rag/documents", tags=["RAG"])
-async def rag_documents(rag: RAGPipeline = Depends(get_rag_pipeline),) -> list[dict[str, Any]]:
+async def rag_documents(
+    rag: RAGPipeline = Depends(get_rag_pipeline),
+) -> list[dict[str, Any]]:
     """List all loaded knowledge-base documents with timeliness status.
 
     Lets the front-end knowledge-base panel show what the corpus actually
@@ -381,15 +459,25 @@ async def rag_reload() -> dict[str, Any]:
 
 # ----  LLM health check ----
 
+
 @app.get("/llm/status", tags=["LLM"])
 async def llm_status() -> dict[str, Any]:
     """Check LLM client status: active provider + guardrails/circuit-breaker info."""
     from tax_agent_platform.config import settings
+
     provider = settings.llm_provider
     if provider == "secondary":
-        model, base_url, key = settings.secondary_model, settings.secondary_base_url, settings.secondary_api_key
+        model, base_url, key = (
+            settings.secondary_model,
+            settings.secondary_base_url,
+            settings.secondary_api_key,
+        )
     else:
-        model, base_url, key = settings.primary_model, settings.primary_base_url, settings.primary_api_key
+        model, base_url, key = (
+            settings.primary_model,
+            settings.primary_base_url,
+            settings.primary_api_key,
+        )
     return {
         "provider": provider,
         "model": model,
@@ -403,10 +491,12 @@ async def llm_status() -> dict[str, Any]:
 
 # ----  Tenant info ----
 
+
 @app.get("/tenant/me", tags=["Tenant"])
 async def tenant_info() -> dict[str, Any]:
     """Get current tenant context (contextvars isolation)."""
     from tax_agent_platform.middleware.tenant import get_tenant
+
     tenant_id = get_current_tenant_id()
     if not tenant_id:
         return {"error": "No tenant context"}

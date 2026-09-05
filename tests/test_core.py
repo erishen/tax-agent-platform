@@ -1,4 +1,4 @@
-""" Unit tests demonstrating testability practices.
+"""Unit tests demonstrating testability practices.
 
 Key practices:
 1. Quick mock construction via Pydantic models
@@ -8,24 +8,26 @@ Key practices:
 
 import pytest
 
-from tax_agent_platform.models import ToolCreate, TenantInfo
-from tax_agent_platform.tools.registry import ToolRegistry
-from tax_agent_platform.rag import chunk_by_fixed_length, chunk_by_semantic, TaxDocument
 from tax_agent_platform.llm.client import CircuitBreaker, Guardrails
 from tax_agent_platform.middleware.tenant import RateLimiter
-
+from tax_agent_platform.models import TenantInfo, ToolCreate
+from tax_agent_platform.rag import TaxDocument, chunk_by_fixed_length, chunk_by_semantic
+from tax_agent_platform.tools.registry import ToolRegistry
 
 # ----  Model & Registry Tests ----
+
 
 class TestToolRegistry:
     """Tests for tool registry with dependency injection."""
 
     def test_register_tool_success(self):
-        """ Quick mock construction via Pydantic model."""
+        """Quick mock construction via Pydantic model."""
         registry = ToolRegistry(seed_defaults=False)
-        req = ToolCreate(tool_name="tax_calculator",
+        req = ToolCreate(
+            tool_name="tax_calculator",
             description="Calculate tax amounts",
-            endpoint_url="http://tax-service/calculate",)
+            endpoint_url="http://tax-service/calculate",
+        )
         result = registry.register(req)
         assert result.tool_name == "tax_calculator"
         assert result.id == 1
@@ -35,7 +37,9 @@ class TestToolRegistry:
         req = ToolCreate(tool_name="tax_calc", description="v1", endpoint_url="http://s1")
         registry.register(req)
         with pytest.raises(ValueError, match="already registered"):
-            registry.register(ToolCreate(tool_name="tax_calc", description="v2", endpoint_url="http://s2"))
+            registry.register(
+                ToolCreate(tool_name="tax_calc", description="v2", endpoint_url="http://s2")
+            )
 
     def test_list_tools_empty(self):
         registry = ToolRegistry(seed_defaults=False)
@@ -51,10 +55,16 @@ class TestToolRegistry:
         """Default seeding registers the 4 demo tools for the running app."""
         registry = ToolRegistry()  # seed_defaults=True
         names = {t.tool_name for t in registry.list_tools()}
-        assert {"calculate_tax", "search_regulation", "validate_invoice", "generate_report"} <= names
+        assert {
+            "calculate_tax",
+            "search_regulation",
+            "validate_invoice",
+            "generate_report",
+        } <= names
 
 
 # ----  Code quality / tax calculation tests ----
+
 
 def calculate_tax(amount: float, rate: float = 0.1) -> float:
     """Improved version: type hints, input validation, configurable rate."""
@@ -86,6 +96,7 @@ class TestCalculateTax:
 
 # ----  RAG tests ----
 
+
 class TestChunking:
     def test_fixed_length_chunking(self):
         text = "A" * 1000
@@ -102,21 +113,31 @@ class TestChunking:
 class TestTaxDocument:
     def test_active_document(self):
         from datetime import date
+
         doc = TaxDocument(doc_id="1", title="Test", content="x", effective_date=date(2024, 1, 1))
         assert doc.is_active(on=date(2025, 1, 1))
 
     def test_expired_document(self):
         from datetime import date
-        doc = TaxDocument(doc_id="2", title="Test", content="x", effective_date=date(2022, 1, 1), expiry_date=date(2023, 12, 31))
+
+        doc = TaxDocument(
+            doc_id="2",
+            title="Test",
+            content="x",
+            effective_date=date(2022, 1, 1),
+            expiry_date=date(2023, 12, 31),
+        )
         assert not doc.is_active(on=date(2024, 6, 1))
 
     def test_not_yet_effective(self):
         from datetime import date
+
         doc = TaxDocument(doc_id="3", title="Test", content="x", effective_date=date(2027, 1, 1))
         assert not doc.is_active(on=date(2026, 1, 1))
 
 
 # ----  LLM stability tests ----
+
 
 class TestCircuitBreaker:
     def test_starts_closed(self):
@@ -169,6 +190,7 @@ class TestGuardrails:
 
 
 # ----  Multi-tenancy tests ----
+
 
 class TestRateLimiter:
     def test_allows_within_limit(self):
