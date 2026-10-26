@@ -5,7 +5,7 @@ Two embedders are provided:
 * :class:`OllamaEmbedder` — calls a local Ollama server's ``/api/embed``
   endpoint (no external API key, no cloud round-trip). This is the default
   in this project because the demo machine already runs Ollama with
-  ``nomic-embed-text`` installed.
+  ``snowflake-arctic-embed2`` installed.
 * :class:`HashEmbedder` — a dependency-free, deterministic lexical fallback
   (hashing trick + L2 normalization). It is NOT semantically rich, but it
   always works offline and keeps tests reproducible when Ollama is down.
@@ -28,7 +28,7 @@ import urllib.request
 logger = logging.getLogger(__name__)
 
 DEFAULT_OLLAMA_URL = "http://localhost:11434/api/embed"
-DEFAULT_EMBED_MODEL = "nomic-embed-text"
+DEFAULT_EMBED_MODEL = "snowflake-arctic-embed2"
 
 
 class Embedder:
@@ -131,11 +131,11 @@ class OllamaEmbedder(Embedder):
 
 
 def get_default_embedder() -> Embedder:
-    """Build the production embedder: Ollama (nomic-embed-text) with hash fallback.
+    """Build the production embedder: Ollama (snowflake-arctic-embed2, 1024-dim)
+    with hash fallback.
 
     Model / URL come from settings (``TAX_EMBEDDING_MODEL`` / ``TAX_EMBEDDING_URL``)
-    so they can be overridden without code changes, e.g. to switch to
-    ``snowflake-arctic-embed2`` for higher recall quality.
+    so they can be overridden without code changes.
     """
     from tax_agent_platform.config import settings
 

@@ -49,11 +49,13 @@ class Settings(BaseSettings):
     chunk_overlap: int = 64
     # RAG retrieval mode: "vector" (dense only) | "hybrid" (vector + lexical blend).
     # Default is "hybrid": this corpus is Chinese-heavy and the local embedding
-    # model (nomic-embed-text) is stronger on English, so blending a lexical
-    # overlap score hardens Chinese recall without losing semantic matching.
+    # model (snowflake-arctic-embed2) handles Chinese well, but blending a
+    # lexical overlap score still hardens recall without losing semantic matching.
     rag_mode: str = "hybrid"
     # Local embedding backend (Ollama). No API key / cloud needed.
-    embedding_model: str = "nomic-embed-text"
+    # 1024-dim. Previously nomic-embed-text (768-dim, English-leaning); retired
+    # from Ollama so all local RAG stacks share one embedding model.
+    embedding_model: str = "snowflake-arctic-embed2"
     embedding_url: str = "http://localhost:11434/api/embed"
     embedding_timeout: float = 10.0
 
